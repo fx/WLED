@@ -337,8 +337,6 @@ WLED_GLOBAL int8_t irPin _INIT(IRPIN);
   constexpr uint8_t hardwareTX = 1;
 #endif
 
-//WLED_GLOBAL byte presetToApply _INIT(0);
-
 WLED_GLOBAL char ntpServerName[33] _INIT("0.wled.pool.ntp.org");   // NTP server to use
 
 // WiFi CONFIG (all these can be changed via web UI, no need to set them here)
