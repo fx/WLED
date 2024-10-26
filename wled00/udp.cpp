@@ -977,7 +977,9 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
 
           bufferOffset += packetSize;
           
-          // std::fill_n(packet_buffer+18, 512, 0); // TEST HACK to stop lights being weird in the house :D
+          #ifdef ARTNET_TESTING_ZEROS // zero the LED values for testing. Minor speed decrease.
+          std::fill_n(packet_buffer+18, packetSize, 0); // TEST HACK to stop lights being weird in the house :D
+          #endif
 
           if (!artnetudp.writeTo(packet_buffer,packetSize+18, client, ARTNET_DEFAULT_PORT)) {
             DEBUG_PRINTLN(F("Art-Net artnetudp.writeTo() returned an error"));
