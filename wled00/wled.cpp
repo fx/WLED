@@ -2,8 +2,13 @@
 #include "wled.h"
 #include "wled_ethernet.h"
 #include <Arduino.h>
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
 esp_eth_handle_t eth_handle = NULL;
-#warning WLED-MM GPL-v3. By installing WLED MM you implicitly accept the terms!
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+#include "esp_ota_ops.h"
+#endif
+#warning WLED-MM is licensed under the EUPL-1.2. By installing WLED MM you implicitly accept the terms!
 
 #if defined(ARDUINO_ARCH_ESP32) && defined(WLED_DISABLE_BROWNOUT_DET)
 #include "soc/soc.h"
@@ -216,6 +221,19 @@ void WLED::loop()
     handlePresets();
     yield();
 
+#if defined(_MoonModules_WLED_) && defined(WLEDMM_FASTPATH)
+    #ifdef WLED_DEBUG
+    unsigned long usermod2Millis = millis();
+    #endif
+    usermods.loop2();
+    #ifdef WLED_DEBUG
+    usermod2Millis = millis() - usermod2Millis;
+    avgUsermodMillis += usermod2Millis;
+    if (usermod2Millis > maxUsermodMillis) maxUsermodMillis = usermod2Millis;
+    #endif
+    yield();
+#endif
+
     #ifdef WLED_DEBUG
     unsigned long stripMillis = millis();
     #endif
@@ -298,6 +316,7 @@ void WLED::loop()
       delete busConfigs[i]; busConfigs[i] = nullptr;
     }
     strip.finalizeInit();
+    busses.setBrightness(bri); // fix re-initialised bus' brightness #4005
     loadLedmap = true;
     if (aligned) strip.makeAutoSegments();
     else strip.fixInvalidSegments();
@@ -554,6 +573,9 @@ void WLED::setup()
   #ifdef ARDUINO_ARCH_ESP32
   pinMode(hardwareRX, INPUT_PULLDOWN); delay(1);        // suppress noise in case RX pin is floating (at low noise energy) - see issue #3128
   #endif
+  #ifdef WLED_BOOTUPDELAY
+  delay(WLED_BOOTUPDELAY); // delay to let voltage stabilize, helps with boot issues on some setups
+  #endif
   Serial.begin(115200);
   if (!Serial) delay(1000); // WLEDMM make sure that Serial has initalized
 
@@ -604,7 +626,10 @@ void WLED::setup()
   #ifdef WLED_RELEASE_NAME
   USER_PRINTF(" WLEDMM_%s %s, build %s.\n", versionString, releaseString, TOSTRING(VERSION)); // WLEDMM specific
   #endif
-
+  #ifdef ARDUINO_ARCH_ESP32
+  const esp_partition_t *running_partition = esp_ota_get_running_partition();
+  USER_PRINTF("Running from: %s which is %u bytes and type %u subtype %u at address %x\n",running_partition->label,running_partition->size,running_partition->type,running_partition->subtype,running_partition->address);
+  #endif
 #ifdef ARDUINO_ARCH_ESP32
   DEBUG_PRINT(F("esp32 "));
   DEBUG_PRINTLN(ESP.getSdkVersion());
@@ -632,6 +657,9 @@ void WLED::setup()
   USER_PRINTF("Core#0 %s (%d)", resetCode2Info(core0code).c_str(), core0code);
   if (core1code > 0) {USER_PRINTF("; Core#1 %s (%d)", resetCode2Info(core1code).c_str(), core1code);}
   USER_PRINTLN(F("."));
+  if ((core0code > 1) && (core0code <= 20) && (core0code != 3) && (core0code != 12) && (core0code != 14)) errorFlag = ERR_SYS_REBOOT; // abnormal reboot
+  if ((resetReason >= 4) && (resetReason < 10)) errorFlag = ERR_SYS_REBOOT; // abnormal reboot (crash, brownout, watchdog, etc)
+  if ((resetReason == ESP_RST_BROWNOUT) || (core0code == 15)) errorFlag = ERR_SYS_BROWNOUT; // brownout detected
   // WLEDMM end
 
   USER_PRINT(F("FLASH: ")); USER_PRINT((ESP.getFlashChipSize()/1024)/1024);
@@ -703,9 +731,11 @@ void WLED::setup()
 #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM)
   //psramInit(); //WLEDMM?? softhack007: not sure if explicit init is really needed ... lets disable it here and see if that works
   #if defined(CONFIG_IDF_TARGET_ESP32S3)
-  // S3: reserve GPIO 33-37 for "octal" PSRAM
-  managed_pin_type pins[] = { {33, true}, {34, true}, {35, true}, {36, true}, {37, true} };
-  pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
+    #if CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM)
+      // S3: reserve GPIO 33-37 for "octal" PSRAM
+      managed_pin_type pins[] = { {33, true}, {34, true}, {35, true}, {36, true}, {37, true} };
+      pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
+    #endif
   #elif defined(CONFIG_IDF_TARGET_ESP32S2)
   // S2: reserve GPIO 26-32 for PSRAM (may fail due to isPinOk() but that will also prevent other allocation)
   //managed_pin_type pins[] = { {26, true}, {27, true}, {28, true}, {29, true}, {30, true}, {31, true}, {32, true} };
@@ -942,8 +972,12 @@ void WLED::setup()
   //#ifdef WLED_DEBUG
   USER_PRINTLN(F("\nGPIO\t| Assigned to\t\t| Info"));
   USER_PRINTLN(F("--------|-----------------------|------------"));
-  for(int pinNr = 0; pinNr < WLED_NUM_PINS; pinNr++) { // 54 = highest PIN on ESP32-P4
+  for(int pinNr = 0; pinNr < WLED_NUM_PINS; pinNr++) { // 49 = highest PIN on ESP32-S3
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    if((pinManager.isPinOk(pinNr, false)) || (pinNr > 18 && pinNr < 21)) {  // softhack007: list USB pins
+#else
     if(pinManager.isPinOk(pinNr, false)) {
+#endif
       //if ((!pinManager.isPinAllocated(pinNr)) && (pinManager.getPinSpecialText(pinNr).length() == 0)) continue;      // un-comment to hide no-name,unused GPIO pins
       bool is_inOut = pinManager.isPinOk(pinNr, true);
 #if 0 // for testing
@@ -985,6 +1019,7 @@ void WLED::setup()
   USER_PRINTLN(F("\n"));
 #endif
 
+  USER_PRINT(F("Free heap ")); USER_PRINTLN(ESP.getFreeHeap());USER_PRINTLN();
   USER_PRINTLN(F("WLED initialization done.\n"));
   delay(50);
   // repeat Ada prompt
@@ -1371,7 +1406,7 @@ void WLED::handleConnection()
   #ifdef ARDUINO_ARCH_ESP32 
   // reconnect WiFi to clear stale allocations if heap gets too low
   if ((!strip.isUpdating()) && (now - heapTime > 5000)) { // WLEDMM: updated with better logic for small heap available by block, not total. // WLEDMM trying to use a moment when the strip is idle
-#if defined(ARDUINO_ARCH_ESP32S2)
+#if defined(ARDUINO_ARCH_ESP32S2) || defined(WLED_ENABLE_HUB75MATRIX)
     uint32_t heap = ESP.getFreeHeap(); // WLEDMM works better on -S2
 #else
     uint32_t heap = heap_caps_get_largest_free_block(0x1800); // WLEDMM: This is a better metric for free heap.

@@ -27,7 +27,7 @@ var cfg = {
 	theme:{base:"dark", bg:{url:""}, alpha:{bg:0.6,tab:0.8}, color:{bg:""}},
 	comp :{colors:{picker: true, rgb: false, quick: true, hex: false},
           labels:true, pcmbot:false, pid:true, seglen:false, segpwr:false, segexp:true, 
-          css:true, hdays:false, fxdef:true} //WLEDMM segexp true as default
+          css:true, hdays:false, fxdef:true, fxdef2:false} //WLEDMM segexp true as default, fxdef2 added
 };
 var hol = [
 	[0,11,24,4,"https://aircoookie.github.io/xmas.png"], // christmas
@@ -696,7 +696,7 @@ function populateInfo(i)
 	if (i.ver.includes("0.14.0-b15.22")) vcn = "Lupo";
 	if (i.ver.includes("0.14.1-b3")) vcn = "Fried Chicken";  // final line of "One Vision" by Queen
 	if (i.ver.includes("0.14.3-b")) vcn = "Fried Chicken";
-	cn += `v${i.ver} &nbsp;<i>"${vcn}"</i><p>(WLEDMM_${i.ver} ${i.rel}.bin)</p><p><em>build ${i.vid}</em></p><table>
+	cn += `v${i.ver} &nbsp;<i>"${vcn}"</i><p>(WLEDMM ${i.rel}.bin)</p><p><em>build ${i.vid}</em></p><table>
 ${urows}
 ${urows===""?'':'<tr><td colspan=2><hr style="height:1px;border-width:0;color:SeaGreen;background-color:Seagreen"></td></tr>'}
 ${i.opt&0x100?inforow("Net Print ☾","<button class=\"btn btn-xs\" onclick=\"requestJson({'netDebug':"+(i.opt&0x0080?"false":"true")+"});\"><i class=\"icons "+(i.opt&0x0080?"on":"off")+"\">&#xe08f;</i></button>"):''}
@@ -2008,8 +2008,23 @@ function readState(s,command=false)
 		case 36:
 			errstr = "Low Memory (oappend buffer).";
 		  break;
+		case 37:
+			errstr = "no memory for LEDs buffer.";
+		  break;
+		case 90:
+			errstr = "Unexpected Restart. Check serial monitor.";
+		  break;
+		case 91:
+			errstr = "Brownout Restart.";
+		  break;
+		case 98:
+			errstr = "Please reboot WLED to activate changed settings.";
+		  break;
+		case 99:
+			errstr = "Please switch your device off and back on.";
+		  break;
 		}
-	  showToast('Error ' + s.error + ": " + errstr, true);
+	  showToast(((s.error < 33)?'Error ':'Warning ') + s.error + ": " + errstr, (s.error < 35)||(s.error > 90));
 	}
 
 	selectedPal = i.pal;
@@ -2853,7 +2868,7 @@ function setFX(ind = null)
 	} else {
 		d.querySelector(`#fxlist input[name="fx"][value="${ind}"]`).checked = true;
 	}
-	var obj = {"seg": {"fx": parseInt(ind), "fxdef": cfg.comp.fxdef}}; // fxdef sets effect parameters to default values
+	var obj = {"seg": {"fx": parseInt(ind), "fxdef": cfg.comp.fxdef, "fxdef2": cfg.comp.fxdef2}}; // fxdef sets effect parameters to default values; WLEDMM fxdef2 only set slider defaults
 	requestJson(obj);
 }
 

@@ -61,6 +61,7 @@ void esp_heap_trace_free_hook(void* ptr)
 unsigned long lastMillis = 0; //WLEDMM
 unsigned long loopCounter = 0; //WLEDMM
 
+void setup() __attribute__((used)); // needed for -flto
 void setup() {
   #ifdef WLED_DEBUG_HEAP
   esp_err_t error = heap_caps_register_failed_alloc_callback(heap_caps_alloc_failed_hook);
@@ -68,11 +69,15 @@ void setup() {
   WLED::instance().setup();
 }
 
+void loop() __attribute__((used)); // needed for -flto
 void loop() {
   //WLEDMM show loops per second
   loopCounter++;
   if (millis() - lastMillis >= 10000) {
-    //USER_PRINTF("%lu lps\n",loopCounter/10);
+    long delta = millis() - lastMillis;
+    if (delta > 0) {
+      //USER_PRINTF("%lu lps\n",(loopCounter*1000U) / delta);
+    }
     lastMillis = millis();
     loopCounter = 0;
   }
