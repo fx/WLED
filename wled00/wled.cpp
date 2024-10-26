@@ -141,7 +141,7 @@ void WLED::loop()
   }
   #endif
 
-  if (!interfacesInited) delay(10); // TroyHacks: burn some loop in case we're waiting on network with nothing else to do.
+  if (!interfacesInited || strip.getBrightness() == 0) delay(10); // TroyHacks: burn some loop in case there's nothing else to do.
 
 #ifdef WLED_ENABLE_DMX
   handleDMXOutput();
