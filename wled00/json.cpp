@@ -328,6 +328,13 @@ bool deserializeSegment(JsonObject elem, byte it, byte presetId)
   if (!iarr.isNull()) {
     uint8_t oldMap1D2D = seg.map1D2D;
     seg.map1D2D = M12_Pixels; // no mapping
+    // WLEDMM begin - we need to init segment caches before putting any pixels
+    if (strip.isServicing()) {
+      USER_PRINTLN(F("deserializeSegment() image: strip is still drawing effects."));
+      strip.waitUntilIdle();
+    }
+    seg.startFrame();
+    // WLEDMM end
 
     // set brightness immediately and disable transition
     transitionDelayTemp = 0;
@@ -430,7 +437,7 @@ bool deserializeState(JsonObject root, byte callMode, byte presetId)
     }
   }
 
-  int tr = -1;
+  long tr = -1;
   if (!presetId || currentPlaylist < 0) { //do not apply transition time from preset if playlist active, as it would override playlist transition times
     tr = root[F("transition")] | -1;
     if (tr >= 0)
@@ -463,7 +470,7 @@ bool deserializeState(JsonObject root, byte callMode, byte presetId)
   strip.setTransition(transitionDelayTemp); // required here for color transitions to have correct duration
 
   tr = root[F("tb")] | -1;
-  if (tr >= 0) strip.timebase = ((uint32_t)tr) - millis();
+  if (tr >= 0) strip.timebase = ((unsigned long)tr) - millis();
 
   JsonObject nl       = root["nl"];
   nightlightActive    = nl["on"]      | nightlightActive;
