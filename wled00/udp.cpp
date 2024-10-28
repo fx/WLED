@@ -959,7 +959,7 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
           packet_buffer[17] = packetSize;
 
           #ifdef ARTNET_TESTING_ZEROS
-          bri = 0; // TEST HACK to stop lights being weird in the house :D
+          bri = 0; // Set all brightness to 0 but keep all calculations the same and keep sending packets.
           #endif
 
           #if defined(ARDUINO_ARCH_ESP32P4)

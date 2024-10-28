@@ -8705,9 +8705,9 @@ uint16_t mode_2DPaintbrush() {
     byte y2 = beatsin8(max(16,int(SEGMENT.speed))/16*4 + fftResult[0]/16, 0, (rows-1), fftResult[bin], SEGENV.aux1);
 
     int length = sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
-    length = map8(fftResult[bin],0,length);
 
     if (length > max(1,int(SEGMENT.custom3))) {
+      length = map8(fftResult[bin],0,length);
       if (color_chaos) {
         color = ColorFromPalette(SEGPALETTE, i * 255 / numLines + (SEGENV.aux0&0xFF), 255, LINEARBLEND);
       } else {
