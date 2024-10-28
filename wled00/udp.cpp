@@ -1,5 +1,4 @@
 #include "wled.h"
-#include "driver/ppa.h"
 
 /*
  * UDP sync notifier / Realtime / Hyperion / TPM2.NET
