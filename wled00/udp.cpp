@@ -909,6 +909,9 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
       const uint_fast16_t hardware_outputs[] = { 768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768 }; // specified in LED counts
       const uint_fast16_t hardware_outputs_universe_start[] = { 0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115 }; // universe start # per output
 
+      // const uint_fast16_t hardware_outputs[] = { 400,400,400,400,400,400,400,400 }; // specified in LED counts
+      // const uint_fast16_t hardware_outputs_universe_start[] = { 0,3,6,9,12,15,18,21 }; // universe start # per output
+
       // Example of two H807SA units ganged together:
       //
       // const uint_fast16_t hardware_outputs[] = { 512,512,512,512,512,512,512,512,512,512,512,512,512,512,512,512 }; // specified in LED counts
@@ -1044,7 +1047,7 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
       #ifdef ARTNET_TIMER
       float mbps = (datatotal*8)/((micros()-timer)*0.95367431640625f);
       // the "micros()" calc is just to limit the print to a more random debug output so it doesn't overwhelm the terminal
-      if (micros() % 100 < 5) USER_PRINTF("UDP for %u pixels took %lu micros. %u data in %u total packets. %2.2f mbit/sec at %u FPS.\n",length, micros()-timer, datatotal, packetstotal, mbps, strip.getFps());
+      if (micros() % 100 < 3) USER_PRINTF("UDP for %u pixels took %lu micros. %u data in %u total packets. %2.2f mbit/sec at %u FPS.\n",length, micros()-timer, datatotal, packetstotal, mbps, strip.getFps());
       #endif
     
       break;
