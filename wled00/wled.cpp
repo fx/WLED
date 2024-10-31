@@ -357,7 +357,7 @@ void WLED::loop()
       //DEBUG_PRINT(F("Total PSRAM: "));    DEBUG_PRINT(ESP.getPsramSize()/1024); DEBUG_PRINTLN("kB");
       DEBUG_PRINT(F("Free PSRAM : "));     DEBUG_PRINT(ESP.getFreePsram()/1024); DEBUG_PRINTLN("kB");
       DEBUG_PRINT(F("Avail PSRAM: "));     DEBUG_PRINT(ESP.getMaxAllocPsram()/1024); DEBUG_PRINTLN("kB");
-	  DEBUG_PRINT(F("PSRAM in use:")); DEBUG_PRINT(ESP.getPsramSize() - ESP.getFreePsram()); DEBUG_PRINTLN(F(" Bytes"));
+      DEBUG_PRINT(F("PSRAM in use:")); DEBUG_PRINT(int(ESP.getPsramSize() - ESP.getFreePsram())); DEBUG_PRINTLN(F(" Bytes"));
 
     } else {
       //DEBUG_PRINTLN(F("No PSRAM"));
@@ -410,22 +410,6 @@ void WLED::loop()
   #else
     ESP.wdtFeed();
   #endif
-#endif
-
-#if 0 && defined(ALL_JSON_TO_PSRAM) && defined(WLED_USE_PSRAM_JSON)
-// WLEDMM experiment - JSON garbagecollect once per minute. Warning: may crash at random
-  static unsigned long last_gc_time = 0;
-  // try once in 60 seconds
-  if ((millis() - last_gc_time) > 60000) {
-    // look for a perfect moment -> make sure no strip or segments or presets activity, no configs being updated, no realtime external control
-    if (!suspendStripService && !doInitBusses && !doReboot && !doCloseFile && !realtimeMode && !loadLedmap && !presetsActionPending()) {
-      // make sure JSON buffer is not in use
-      if ( (doSerializeConfig == false) && (jsonBufferLock == 0) && (fileDoc == nullptr)) {
-        USER_PRINTLN(F("JSON gabage collection (regular)."));
-        doc.garbageCollect();                   // WLEDMM experimental - trigger garbage collection on JSON doc memory pool.
-                                                // this will make any pending reference to JSON objects _invalid_
-        last_gc_time = millis();
-  } } }
 #endif
 
 }
@@ -665,14 +649,20 @@ void WLED::setup()
   USER_PRINT(F("FLASH: ")); USER_PRINT((ESP.getFlashChipSize()/1024)/1024);
   // USER_PRINT(F("MB, Mode ")); USER_PRINT(ESP.getFlashChipMode());
   #ifdef WLED_DEBUG
-  // switch (ESP.getFlashChipMode()) {
-  //   // missing: Octal modes
-  //   case FM_QIO:  DEBUG_PRINT(F(" (QIO)")); break;
-  //   case FM_QOUT: DEBUG_PRINT(F(" (QOUT)"));break;
-  //   case FM_DIO:  DEBUG_PRINT(F(" (DIO)")); break;
-  //   case FM_DOUT: DEBUG_PRINT(F(" (DOUT)"));break;
-  //   default: break;
-  // }
+  switch (ESP.getFlashChipMode()) {
+    // missing: Octal modes
+    case FM_QIO:  DEBUG_PRINT(F(" (QIO)")); break;
+    case FM_QOUT: DEBUG_PRINT(F(" (QOUT)"));break;
+    case FM_DIO:  DEBUG_PRINT(F(" (DIO)")); break;
+    case FM_DOUT: DEBUG_PRINT(F(" (DOUT)"));break;
+    #if defined(CONFIG_IDF_TARGET_ESP32S3) && CONFIG_ESPTOOLPY_FLASHMODE_OPI
+      case FM_FAST_READ: DEBUG_PRINT(F(" (OPI)"));break;
+    #else
+      case FM_FAST_READ: DEBUG_PRINT(F(" (fast_read)"));break;
+    #endif
+    case FM_SLOW_READ: DEBUG_PRINT(F(" (slow_read)"));break;
+    default: break;
+  }
   #endif
   USER_PRINT(F(", speed ")); USER_PRINT(ESP.getFlashChipSpeed()/1000000);USER_PRINTLN(F("MHz."));
   
@@ -717,21 +707,10 @@ void WLED::setup()
   DEBUG_PRINTF("%s min free stack %d\n", pcTaskGetTaskName(NULL), uxTaskGetStackHighWaterMark(NULL)); //WLEDMM
 #endif
 
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
-  // managed_pin_type wifipins[] = { { 14, true}, {15, true}, {16, true}, {17, true}, {18, true}, {19, true}, {54, true} };  
-  // pinManager.allocateMultiplePins(wifipins, sizeof(wifipins)/sizeof(managed_pin_type), PinOwner::WiFi);
-  // managed_pin_type ethpins[] = { { 35, true}, {34, true}, {31, true}, {30, true}, {29, true}, {28, true}, {50, true} , {49, true}, {52, true}, {53, true} };  
-  // pinManager.allocateMultiplePins(ethpins, sizeof(ethpins)/sizeof(managed_pin_type), PinOwner::Ethernet);
-  // managed_pin_type i2spins[] = { { 9, true}, {10, true}, {11, true}, {12, true}, {13, true} };  
-  // pinManager.allocateMultiplePins(i2spins, sizeof(i2spins)/sizeof(managed_pin_type), PinOwner::UM_Audioreactive);
-  // managed_pin_type i2cpins[] = { { 7, true}, {8, true} };  
-  // pinManager.allocateMultiplePins(i2cpins, sizeof(i2cpins)/sizeof(managed_pin_type), PinOwner::HW_I2C);
-#endif
-
-#if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM)
+#if defined(ARDUINO_ARCH_ESP32) && (defined(BOARD_HAS_PSRAM) || defined(CONFIG_ESPTOOLPY_FLASHMODE_OPI))
   //psramInit(); //WLEDMM?? softhack007: not sure if explicit init is really needed ... lets disable it here and see if that works
   #if defined(CONFIG_IDF_TARGET_ESP32S3)
-    #if CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM)
+    #if CONFIG_ESPTOOLPY_FLASHMODE_OPI || (CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM))
       // S3: reserve GPIO 33-37 for "octal" PSRAM
       managed_pin_type pins[] = { {33, true}, {34, true}, {35, true}, {36, true}, {37, true} };
       pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
@@ -776,9 +755,14 @@ void WLED::setup()
   pinManager.allocatePin(2, true, PinOwner::DMX);
 #endif
 
-#if defined(ALL_JSON_TO_PSRAM) && defined(WLED_USE_PSRAM_JSON)
-  USER_PRINTLN(F("JSON gabage collection (initial)."));
-  doc.garbageCollect();   // WLEDMM experimental - this seems to move the complete doc[] into PSRAM
+#if defined(ALL_JSON_TO_PSRAM) && defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM_JSON) || defined(WLED_USE_PSRAM))
+  if (psramFound()) {
+    DEBUG_PRINT(F("\nfree heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
+    USER_PRINTLN(F("JSON gabage collection (initial)."));
+    doc.garbageCollect();   // WLEDMM experimental - this seems to move the complete doc[] into PSRAM
+	  USER_PRINT(F("PSRAM in use:")); USER_PRINT(int(ESP.getPsramSize() - ESP.getFreePsram())); USER_PRINTLN(F(" Bytes."));
+    DEBUG_PRINT(F("free heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
+  }
 #endif
 
 // WLEDMM experimental: support for single neoPixel on Adafruit boards

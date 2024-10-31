@@ -1091,7 +1091,7 @@ void serializeInfo(JsonObject root)
     #if CONFIG_SPIRAM_MODE_OCT
       root[F("psrmode")]  = F("🚀 OPI");
     #elif CONFIG_SPIRAM_MODE_QUAD
-      root[F("psrmode")]  = F("qspi 🛻");
+      root[F("psrmode")]  = F("qspi");
     #endif
     #endif
   }
@@ -1129,15 +1129,21 @@ void serializeInfo(JsonObject root)
   root[F("e32speed")] = ESP.getCpuFreqMHz();
   root[F("e32flash")] = int((ESP.getFlashChipSize()/1024)/1024);
   root[F("e32flashspeed")] = int(ESP.getFlashChipSpeed()/1000000);
-  // root[F("e32flashmode")] = int(ESP.getFlashChipMode());
-  // switch (ESP.getFlashChipMode()) {
-  //   // missing: Octal modes
-  //   case FM_QIO:  root[F("e32flashtext")] = F(" (QIO)"); break;
-  //   case FM_QOUT: root[F("e32flashtext")] = F(" (QOUT)");break;
-  //   case FM_DIO:  root[F("e32flashtext")] = F(" (DIO)"); break;
-  //   case FM_DOUT: root[F("e32flashtext")] = F(" (DOUT or other)");break;
-  //   default: root[F("e32flashtext")] = F(" (other)"); break;
-  // }
+  root[F("e32flashmode")] = int(ESP.getFlashChipMode());
+  switch (ESP.getFlashChipMode()) {
+    // missing: Octal modes
+    case FM_QIO:  root[F("e32flashtext")] = F(" (QIO)"); break;
+    case FM_QOUT: root[F("e32flashtext")] = F(" (QOUT)");break;
+    case FM_DIO:  root[F("e32flashtext")] = F(" (DIO)"); break;
+    case FM_DOUT: root[F("e32flashtext")] = F(" (DOUT or other)");break;
+    #if defined(CONFIG_IDF_TARGET_ESP32S3) && CONFIG_ESPTOOLPY_FLASHMODE_OPI
+      case FM_FAST_READ: root[F("e32flashtext")] = F(" (🚀OPI)");break;
+    #else
+      case FM_FAST_READ: root[F("e32flashtext")] = F(" (fast_read)");break;
+    #endif
+    case FM_SLOW_READ: root[F("e32flashtext")] = F(" (slow_read)");break;
+    default: root[F("e32flashtext")] = F(" (other)"); break;
+  }
 
   #else // for 8266
   root[F("e32core0code")] = (int)ESP.getResetInfoPtr()->reason;
