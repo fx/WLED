@@ -770,6 +770,7 @@ void sendSysInfoUDP()
 static       size_t sequenceNumber = 0; // this needs to be shared across all outputs
 static const byte   ART_NET_HEADER[12] PROGMEM = {0x41,0x72,0x74,0x2d,0x4e,0x65,0x74,0x00,0x00,0x50,0x00,0x0e};
 static uint_fast16_t artnetlimiter  = millis()+(1000/ARTNET_FPS_LIMIT);
+static uint_fast16_t framenumber = 0;
 
 #if defined(ARDUINO_ARCH_ESP32P4)
 extern "C" {
@@ -786,6 +787,17 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
   // static byte *packet_buffer = (byte *) calloc(530, sizeof(byte)); // don't care if RGB or RGBW, assume enough (18 header+512 data) for both. calloc zeros.
   static byte *packet_buffer = (byte *) heap_caps_calloc_prefer(530, sizeof(byte), 3, MALLOC_CAP_IRAM_8BIT, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT); // MALLOC_CAP_TCM seems to have alignment issues.
   if (packet_buffer[0] != 0x41) memcpy(packet_buffer, ART_NET_HEADER, 12); // copy in the Art-Net header if it isn't there already
+
+  // static byte *buffer = (byte *) heap_caps_calloc_prefer(length*3*72, sizeof(byte), 3, MALLOC_CAP_IRAM_8BIT, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT); // MALLOC_CAP_TCM seems to have alignment issues.
+  // memmove(buffer+(length*3),buffer,length*3*7);
+  // memcpy(buffer,buffer_in,length*3);
+  // framenumber++;
+  // if (framenumber >= 8) {
+  //   framenumber = 0;
+  // } else {
+  //   // return 0;
+  // }
+  // length *= 8;
 
   switch (type) {
     case 0: // DDP
@@ -906,11 +918,11 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
       // const uint_fast16_t hardware_outputs[] = { 1008,1008,1008,1008,1008,1008,1008,1008 }; // specified in LED counts
       // const uint_fast16_t hardware_outputs_universe_start[] = { 0,6,12,18,24,30,36,42 }; // universe start # per output
 
-      const uint_fast16_t hardware_outputs[] = { 768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768 }; // specified in LED counts
-      const uint_fast16_t hardware_outputs_universe_start[] = { 0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115 }; // universe start # per output
+      // const uint_fast16_t hardware_outputs[] = { 768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768 }; // specified in LED counts
+      // const uint_fast16_t hardware_outputs_universe_start[] = { 0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115 }; // universe start # per output
 
-      // const uint_fast16_t hardware_outputs[] = { 400,400,400,400,400,400,400,400 }; // specified in LED counts
-      // const uint_fast16_t hardware_outputs_universe_start[] = { 0,3,6,9,12,15,18,21 }; // universe start # per output
+      const uint_fast16_t hardware_outputs[] = { 400,400,400,400,400,400,400,400 }; // specified in LED counts
+      const uint_fast16_t hardware_outputs_universe_start[] = { 0,3,6,9,12,15,18,21 }; // universe start # per output
 
       // Example of two H807SA units ganged together:
       //
