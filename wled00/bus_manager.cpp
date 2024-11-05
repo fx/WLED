@@ -11,14 +11,14 @@
 
 // WLEDMM functions to get/set bits in an array - based on functions created by Brandon for GOL
 //  toDo : make this a class that's completely defined in a header file
-bool getBitFromArray(const uint8_t* byteArray, size_t position) { // get bit value
+inline bool getBitFromArray(const uint8_t* byteArray, size_t position) { // get bit value
     size_t byteIndex = position / 8;
     unsigned bitIndex = position % 8;
     uint8_t byteValue = byteArray[byteIndex];
     return (byteValue >> bitIndex) & 1;
 }
 
-void setBitInArray(uint8_t* byteArray, size_t position, bool value) {  // set bit - with error handling for nullptr
+inline void setBitInArray(uint8_t* byteArray, size_t position, bool value) {  // set bit - with error handling for nullptr
     //if (byteArray == nullptr) return;
     size_t byteIndex = position / 8;
     unsigned bitIndex = position % 8;
@@ -600,11 +600,16 @@ uint8_t BusHub75Matrix::instanceCount = 0;
     #define MAX_PIXELS_6BIT (192 * 64)
     #define MAX_PIXELS_4BIT (256 * 64)
   #endif
-#elif defined(CONFIG_IDF_TARGET_ESP32S3)
-  // standard esp32-S3
+#elif defined(CONFIG_IDF_TARGET_ESP32S3) && defined(BOARD_HAS_PSRAM)
+  // standard esp32-S3 with quad PSRAM
   #define MAX_PIXELS_8BIT ( 96 * 64)
   #define MAX_PIXELS_6BIT (128 * 64)
   #define MAX_PIXELS_4BIT (160 * 64)
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+  // HD-WF2 is an esp32-S3 without PSRAM - use same limits as classic esp32
+  #define MAX_PIXELS_8BIT ( 64 * 64)
+  #define MAX_PIXELS_6BIT ( 96 * 64)
+  #define MAX_PIXELS_4BIT (128 * 64)
 #elif defined(CONFIG_IDF_TARGET_ESP32S2)
   // esp32-S2 only has 320KB RAM
   #define MAX_PIXELS_8BIT ( 48 * 48)
@@ -726,8 +731,15 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   mxconfig.gpio.d = 35;
   mxconfig.gpio.e = 21;
 
-#elif defined(CONFIG_IDF_TARGET_ESP32S3) && defined(BOARD_HAS_PSRAM)// ESP32-S3
+#elif defined(CONFIG_IDF_TARGET_ESP32S3) && defined(BOARD_HAS_PSRAM)// ESP32-S3 with PSRAM
 
+  #if defined(MOONHUB_S3_PINOUT)
+  USER_PRINTLN("MatrixPanel_I2S_DMA - T7 S3 with PSRAM, MOONHUB pinout");
+
+  // HUB75_I2S_CFG::i2s_pins _pins={R1_PIN, G1_PIN, B1_PIN, R2_PIN, G2_PIN, B2_PIN, A_PIN, B_PIN, C_PIN, D_PIN, E_PIN, LAT_PIN, OE_PIN, CLK_PIN};
+  mxconfig.gpio = { 1, 5, 6, 7, 13, 9, 16, 48, 47, 21, 38, 8, 4, 18 };
+
+  #else
   USER_PRINTLN("MatrixPanel_I2S_DMA - S3 with PSRAM");
 
   mxconfig.gpio.r1 =  1;
@@ -746,8 +758,9 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   mxconfig.gpio.lat = 8;
   mxconfig.gpio.oe  = 3;
   // 16th pin is GND
+  #endif
 
-#elif defined(CONFIG_IDF_TARGET_ESP32S3) // ESP32-S3
+#elif defined(CONFIG_IDF_TARGET_ESP32S3) // ESP32-S3 HD-WF2
 
   // Huidu HD-WF2 ESP32-S3
   // https://www.aliexpress.com/item/1005002258734810.html
@@ -1075,19 +1088,13 @@ void __attribute__((hot)) BusHub75Matrix::setPixelColor(uint16_t pix, uint32_t c
 }
 
 uint32_t BusHub75Matrix::getPixelColor(uint16_t pix) const {
-  if (!_valid || pix >= _len) return BLACK;
-  if (_ledBuffer)
-    return uint32_t(_ledBuffer[pix].scale8(_bri)) & 0x00FFFFFF;  // scale8() is needed to mimic NeoPixelBus, which returns scaled-down colours
-  else
-    return BLACK;   // we don't know anything about the pixel
+  if (!_valid || pix >= _len || !_ledBuffer) return BLACK;
+  return uint32_t(_ledBuffer[pix].scale8(_bri)) & 0x00FFFFFF;  // scale8() is needed to mimic NeoPixelBus, which returns scaled-down colours
 }
 
 uint32_t __attribute__((hot)) BusHub75Matrix::getPixelColorRestored(uint16_t pix) const {
-  if (!_valid || pix >= _len) return BLACK;
-  if (_ledBuffer)
-    return uint32_t(_ledBuffer[pix]) & 0x00FFFFFF;
-  else
-    return BLACK;   // we don't know anything about the pixel
+  if (!_valid || pix >= _len || !_ledBuffer) return BLACK;
+  return uint32_t(_ledBuffer[pix]) & 0x00FFFFFF;
 }
 
 void BusHub75Matrix::setBrightness(uint8_t b, bool immediate) {
@@ -1113,19 +1120,23 @@ void __attribute__((hot)) BusHub75Matrix::show(void) {
     unsigned height = isFourScan ? fourScanPanel->height() : display->height();
     unsigned width = _panelWidth;
 
+    // Cache pointers to LED array and bitmask array, to avoid repeated accesses
+    const byte* ledsDirty = _ledsDirty;
+    const CRGB* ledBuffer = _ledBuffer;
+
     //while(!previousBufferFree) delay(1);   // experimental - Wait before we allow any writing to the buffer. Stop flicker.
 
     size_t pix = 0; // running pixel index
     for (int y=0; y<height; y++) for (int x=0; x<width; x++) {
-      if (getBitFromArray(_ledsDirty, pix) == true) {        // only repaint the "dirty"  pixels
+      if (getBitFromArray(ledsDirty, pix) == true) {        // only repaint the "dirty"  pixels
         #ifndef NO_CIE1931
-        uint32_t c = uint32_t(_ledBuffer[pix]) & 0x00FFFFFF; // get RGB color, removing FastLED "alpha" component 
+        uint32_t c = uint32_t(ledBuffer[pix]) & 0x00FFFFFF; // get RGB color, removing FastLED "alpha" component 
         c = unGamma24(c); // to use the driver linear brightness feature, we first need to undo WLED gamma correction
         uint8_t r = R(c);
         uint8_t g = G(c);
         uint8_t b = B(c);
         #else
-        const CRGB c = _ledBuffer[pix];  // we stay on CRGB, instead of packing/unpacking the color value to uint32_t
+        const CRGB c = ledBuffer[pix];  // we stay on CRGB, instead of packing/unpacking the color value to uint32_t
         uint8_t r = c.r;
         uint8_t g = c.g;
         uint8_t b = c.b;
