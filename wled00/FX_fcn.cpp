@@ -1887,10 +1887,14 @@ void WS2812FX::service() {
   //if (_suspend) return;
   if (elapsed < 2) return;                                                       // keep wifi alive
   if ( !_triggered && (_targetFps != FPS_UNLIMITED) && (_targetFps != FPS_UNLIMITED_AC)) {
-    if (elapsed < MIN_SHOW_DELAY) return;                                        // WLEDMM too early for service
+#if 0
+    if (elapsed < MIN_SHOW_DELAY) return;                                        // WLEDMM too early for service - delivers higher fps
+#else
+    if ((elapsed+1) < _frametime) return;                                            // code from upstream - stricter on FPS
+#endif
   }
   #else  // legacy
-  if (nowUp - _lastShow < MIN_SHOW_DELAY) return;
+  if (elapsed < _frametime) return;
   #endif
 
   bool doShow = false;
@@ -1923,7 +1927,9 @@ void WS2812FX::service() {
 
         if (!cctFromRgb || correctWB) busses.setSegmentCCT(seg.currentBri(seg.cct, true), correctWB);
         for (uint8_t c = 0; c < NUM_COLORS; c++) _colors_t[c] = gamma32(_colors_t[c]);
-
+#if 0  // WARNING this would kill _supersync_
+        now = millis() + timebase;
+#endif
         seg.startFrame();   // WLEDMM
         // effect blending (execute previous effect)
         // actual code may be a bit more involved as effects have runtime data including allocated memory
@@ -1944,7 +1950,15 @@ void WS2812FX::service() {
   _virtualSegmentLength = 0;
   busses.setSegmentCCT(-1);
   if(doShow) {
+#if 0 && defined(ARDUINO_ARCH_ESP32)      // EXPERIMENTAL - enabled this to enforce stricter frametime limits
+    static unsigned long lastTimeShow = 0;
+    long tdelta = millis() - lastTimeShow;
+    if ((lastTimeShow > 0) && (tdelta > 1) && (tdelta < _frametime))  // too early - release CPU to slow down
+      vTaskDelay((tdelta-1) / portTICK_PERIOD_MS);                    // "-1" because vTaskDelay() may actually delay longer than requested
+    lastTimeShow = millis();
+#else
     yield();
+#endif
     show();
     _lastServiceShow = nowUp; // WLEDMM use correct timestamp
   }
@@ -2089,7 +2103,7 @@ void WS2812FX::show(void) {
 
 #ifdef ARDUINO_ARCH_ESP32                      // WLEDMM more accurate FPS measurement for ESP32
   int64_t diff500 = now500 - _lastShow500;
-  if ((diff500 > 300) && (diff500 < 800000)) { // exclude stupid values (timer rollover, major hickups)
+  if ((diff500 > 1) && (diff500 < 800000)) {   // exclude stupid values (timer rollover, major hickups)
     float fpcCurr500 = 500000.0f / float(diff500);
     if (fpcCurr500 > 2)
       _cumulativeFps500 = (3 * _cumulativeFps500 + (500.0 * fpcCurr500)) / 4;  // average for some smoothing
@@ -2121,6 +2135,7 @@ uint16_t WS2812FX::getFps() const {
 
 void WS2812FX::setTargetFps(uint8_t fps) {
   if (fps <= 251) _targetFps = fps;  // WLEDMM allow higher framerates
+  //if (fps > 0) _frametime = ((2000 / _targetFps) +1) /2;   // with rounding
   if (fps > 0) _frametime = 1000 / _targetFps;
   else _frametime = 2;                          // AC WLED compatibility
   if (fps >= FPS_UNLIMITED) _frametime = 2;     // WLEDMM unlimited mode
