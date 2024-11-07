@@ -760,16 +760,8 @@ void sendSysInfoUDP()
 // buffer - a buffer of at least length*4 bytes long
 // isRGBW - true if the buffer contains 4 components per pixel
 
-#ifndef ARTNET_FPS_LIMIT
-  // ...in theory we could discover and probe the hardware for the FPS limit, 
-  // but 44 is pretty common as it matches the wired DMX512 max speed for one universe.
-  // The H807SA responds with 44Hz, aka 44 FPS.
-  #define ARTNET_FPS_LIMIT 44
-#endif
-
 static       size_t sequenceNumber = 0; // this needs to be shared across all outputs
 static const byte   ART_NET_HEADER[12] PROGMEM = {0x41,0x72,0x74,0x2d,0x4e,0x65,0x74,0x00,0x00,0x50,0x00,0x0e};
-static uint_fast16_t artnetlimiter  = millis()+(1000/ARTNET_FPS_LIMIT);
 static uint_fast16_t framenumber = 0;
 
 #if defined(ARDUINO_ARCH_ESP32P4)
@@ -778,7 +770,7 @@ extern "C" {
 }
 #endif
 
-uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t length, uint8_t *buffer, uint8_t bri, bool isRGBW)  {
+uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t length, uint8_t *buffer, uint8_t bri, bool isRGBW, uint8_t outputs, uint16_t leds_per_output, uint8_t fps_limit)  {
 
   if (!(apActive || interfacesInited) || !client[0] || !length) return 1;  // network not initialised or dummy/unset IP address  031522 ajn added check for ap
 
@@ -871,11 +863,12 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
     } break;
     case 2: //Art-Net
     {
+      static uint_fast16_t artnetlimiter = millis()+(1000/fps_limit);
       while (artnetlimiter > micros()) {
         if (ArtNetSkipFrame) {
-          return 0; // Let WLED keep generating effect frames and we output an Art-Net frame when ARTNET_FPS_LIMIT is reached.
+          return 0; // Let WLED keep generating effect frames and we output an Art-Net frame when fps_limit is reached.
         } else {
-          delayMicroseconds(10); // Make WLED obey ARTNET_FPS_LIMIT and just delay here until we're ready to send a frame.
+          delayMicroseconds(10); // Make WLED obey fps_limit and just delay here until we're ready to send a frame.
         }
       }
 
@@ -900,36 +893,6 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
 
       const uint_fast16_t ARTNET_CHANNELS_PER_PACKET = isRGBW?512:510; // 512/4=128 RGBW LEDs, 510/3=170 RGB LEDs
       
-      #ifndef ARTNET_TROYHACKS
-      // Default WLED-to-WLED Art-Net output
-      //
-      const size_t hardware_outputs[1] = { length }; // specified in LED counts. "length" = all LEDs
-      const size_t hardware_outputs_universe_start[1] = { 0 }; // universe start # per output
-      #else
-      // Example of more than 1 hardware output, currently you can only hard-code this kind of setup here.
-      // You get 170 RGB LEDs per universe (128 RGBW) so the receiving hardware needs to be configured correctly.
-      // The H807SA, for example, only allows one global setting of Art-Net universes-per-output, but you
-      // can adjust how many pixels are on a particular output. In theory any hardware setup can be defined here
-      // but most Art-Net boxes I've seen have a fixed universes-per-output. 
-      // We will still only send X pixels, so 1 RGB pixel on a 6-universe outout would send only 1 packet with 3 RGB bytes, etc.
-      // There is a minimum of 1 packet per output tho, so don't define universes you're not using. 
-      // Sum of hardware_outputs[] should always match your LED counts for your Art-Net output bus.
-      //
-      // const uint_fast16_t hardware_outputs[] = { 1008,1008,1008,1008,1008,1008,1008,1008 }; // specified in LED counts
-      // const uint_fast16_t hardware_outputs_universe_start[] = { 0,6,12,18,24,30,36,42 }; // universe start # per output
-
-      const uint_fast16_t hardware_outputs[] = { 768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768,768 }; // specified in LED counts
-      const uint_fast16_t hardware_outputs_universe_start[] = { 0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115 }; // universe start # per output
-
-      // const uint_fast16_t hardware_outputs[] = { 400,400,400,400,400,400,400,400 }; // specified in LED counts
-      // const uint_fast16_t hardware_outputs_universe_start[] = { 0,3,6,9,12,15,18,21 }; // universe start # per output
-
-      // Example of two H807SA units ganged together:
-      //
-      // const uint_fast16_t hardware_outputs[] = { 512,512,512,512,512,512,512,512,512,512,512,512,512,512,512,512 }; // specified in LED counts
-      // const uint_fast16_t hardware_outputs_universe_start[] = { 0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60 }; // universe start # per output
-      #endif
-      
       uint_fast16_t bufferOffset = 0;
       uint_fast16_t hardware_output_universe = 0;
       
@@ -937,16 +900,16 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
 
       if (sequenceNumber == 0 || sequenceNumber > 255) sequenceNumber = 1;
 
-      for (uint_fast16_t hardware_output = 0; hardware_output < sizeof(hardware_outputs)/sizeof(size_t); hardware_output++) {
+      for (uint_fast16_t hardware_output = 0; hardware_output < outputs; hardware_output++) {
         
         if (bufferOffset > length * (isRGBW?4:3)) {
           // This stop is reached if we don't have enough pixels for the defined Art-Net output.
           return 1; // stop when we hit end of LEDs
         }
 
-        hardware_output_universe = hardware_outputs_universe_start[hardware_output];
+        // hardware_output_universe = hardware_outputs_universe_start[hardware_output];
 
-        uint_fast16_t channels_remaining = hardware_outputs[hardware_output] * (isRGBW?4:3);
+        uint_fast16_t channels_remaining = leds_per_output * (isRGBW?4:3);
 
         while (channels_remaining > 0) {
           
@@ -1052,7 +1015,7 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
       
       #endif
 
-      artnetlimiter = micros()+(1000000/ARTNET_FPS_LIMIT)-(micros()-timer);
+      artnetlimiter = micros()+(1000000/fps_limit)-(micros()-timer);
 
       // This is the proper stop if pixels = Art-Net output.
       
