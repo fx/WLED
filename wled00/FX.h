@@ -380,6 +380,7 @@ typedef struct Segment {
     };
     uint8_t  grouping, spacing;
     uint8_t  opacity;
+    bool needsBlank;              // WLEDMM indicates that Segment needs to be blanked (due to change of mirror / reverse / transpose / spacing)
     uint32_t colors[NUM_COLORS];
     uint8_t  cct;                 //0==1900K, 255==10091K
     uint8_t  custom1, custom2;    // custom FX parameters/sliders
@@ -489,6 +490,7 @@ typedef struct Segment {
       grouping(1),
       spacing(0),
       opacity(255),
+      needsBlank(false),
       colors{DEFAULT_COLOR,BLACK,BLACK},
       cct(127),
       custom1(DEFAULT_C1),
@@ -563,9 +565,9 @@ typedef struct Segment {
     inline bool     hasRGB(void)         const { return _isRGB; }
     inline bool     hasWhite(void)       const { return _hasW; }
     inline bool     isCCT(void)          const { return _isCCT; }
-    inline uint16_t width(void)          const { return isActive() ? (stop - start) : 0; }         // segment width in physical pixels (length if 1D)
+    inline uint16_t width(void)          const { return (stop  > start)  ?  (stop - start)  : 0; } // segment width in physical pixels (length if 1D)
     inline uint16_t height(void)         const { return (stopY > startY) ? (stopY - startY) : 0; } // segment height (if 2D) in physical pixels // WLEDMM make sure its always > 0
-    inline uint16_t length(void)         const { return width() * height(); }     // segment length (count) in physical pixels
+    inline uint16_t length(void)         const { return width() * height(); }     // segment length (count) in physical pixels // WLEDMM fishy ... need to double-check if this is correct
     inline uint16_t groupLength(void)    const { return max(1, grouping + spacing); } // WLEDMM length = 0 could lead to div/0 in virtualWidth() and virtualHeight()
     inline uint8_t  getLightCapabilities(void) const { return _capabilities; }
 
@@ -598,6 +600,7 @@ typedef struct Segment {
       * Safe to call from interrupts and network requests.
       */
     inline void markForReset(void) { reset = true; }  // setOption(SEG_OPTION_RESET, true)
+    inline void markForBlank(void) { needsBlank = true; } // WLEDMM serialize "blank" requests, avoid parallel drawing from different task
     void setUpLeds(void);   // set up leds[] array for loseless getPixelColor()
 
     // transition functions

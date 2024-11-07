@@ -650,10 +650,21 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   // mxconfig.latch_blanking = 3;                // use in case you see gost images
   // mxconfig.i2sspeed = HUB75_I2S_CFG::HZ_10M;  // experimental - 5MHZ should be enugh, but colours looks slightly better at 10MHz
   // mxconfig.min_refresh_rate = 90;
-  mxconfig.clkphase = false; // can help in case that the leftmost column is invisible, or pixels on the right side "bleeds out" to the left.
- 
-  // How many panels we have connected, cap at sane value
-  mxconfig.chain_length = max((uint8_t) 1, min(bc.pins[0], (uint8_t) 4)); // prevent bad data preventing boot due to low memory
+
+  mxconfig.clkphase = bc.reversed;
+  if (bc.refreshReq) mxconfig.latch_blanking = 1;                // needed for some ICS panels (default = 2)
+  // fake bus flags
+  _needsRefresh = mxconfig.latch_blanking == 1;
+  reversed = mxconfig.clkphase;
+
+  // How many panels we have connected, cap at sane value, prevent bad data preventing boot due to low memory
+  #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(BOARD_HAS_PSRAM)        // ESP32-S3: allow up to 6 panels
+  mxconfig.chain_length = max((uint8_t) 1, min(bc.pins[0], (uint8_t) 6));
+  #elif defined(CONFIG_IDF_TARGET_ESP32S2)                                  // ESP32-S2: only 2 panels due to small RAM
+  mxconfig.chain_length = max((uint8_t) 1, min(bc.pins[0], (uint8_t) 2));
+  #else                                                                     // others: up to 4 panels
+  mxconfig.chain_length = max((uint8_t) 1, min(bc.pins[0], (uint8_t) 4));
+  #endif
 
   #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(BOARD_HAS_PSRAM)
   if(bc.pins[0] > 4) {
