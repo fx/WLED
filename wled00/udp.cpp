@@ -907,8 +907,6 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
           return 1; // stop when we hit end of LEDs
         }
 
-        // hardware_output_universe = hardware_outputs_universe_start[hardware_output];
-
         uint_fast16_t channels_remaining = leds_per_output * (isRGBW?4:3);
 
         while (channels_remaining > 0) {
@@ -1007,6 +1005,7 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
           return 1; // borked
         }
         #endif
+        packet_buffer[9]  = ART_NET_HEADER[9];  // reset ArtSync opcode high byte
 
         #ifdef ARTNET_TIMER
         packetstotal++;
