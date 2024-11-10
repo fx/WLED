@@ -863,7 +863,7 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
     } break;
     case 2: //Art-Net
     {
-      static uint_fast16_t artnetlimiter = millis()+(1000/fps_limit);
+      static unsigned long artnetlimiter = micros()+(1000000/fps_limit);
       while (artnetlimiter > micros()) {
         if (ArtNetSkipFrame) {
           return 0; // Let WLED keep generating effect frames and we output an Art-Net frame when fps_limit is reached.
@@ -887,7 +887,7 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
       uint_fast16_t datatotal = 0;
       uint_fast16_t packetstotal = 0;
       #endif
-      uint_fast16_t timer = micros();
+      unsigned long timer = micros();
 
       AsyncUDP artnetudp;// AsyncUDP so we can just blast packets.
 
@@ -1014,7 +1014,7 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
       
       #endif
 
-      artnetlimiter = micros()+(1000000/fps_limit)-(micros()-timer);
+      artnetlimiter = timer + (1000000/fps_limit);
 
       // This is the proper stop if pixels = Art-Net output.
       
