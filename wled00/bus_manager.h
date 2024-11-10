@@ -353,7 +353,7 @@ class BusNetwork : public Bus {
       return !_broadcastLock;
     }
 
-    uint8_t getPins(uint8_t* pinArray) const;
+    uint8_t getPins(uint8_t* pinArray) const override;
 
     uint16_t getLength() const override {
       return _len;
@@ -373,7 +373,7 @@ class BusNetwork : public Bus {
 
     void setColorOrder(uint8_t colorOrder);
 
-    uint8_t getColorOrder() const {
+    uint8_t getColorOrder() const override {
       return _colorOrder;
     }
 
