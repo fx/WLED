@@ -881,13 +881,13 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
       static byte* buffer = nullptr; // Declare static buffer
       static size_t buffer_size = 0; // Track the buffer size
 
-      if (volume_depth > 1) {
-        size_t new_size = (length * (isRGBW ? 4 : 3) * volume_depth) + 15;
+      if (volume_depth > 1) { // always assume to buffer output
+        size_t new_size = (length * (isRGBW ? 4 : 3) * volume_depth);
         if (buffer == nullptr || buffer_size != new_size) {
           if (buffer != nullptr) {
             heap_caps_free(buffer);
           }
-          buffer = (byte *) heap_caps_calloc_prefer(new_size, sizeof(byte), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
+          buffer = (byte *) heap_caps_calloc_prefer(new_size+15, sizeof(byte), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
           buffer_size = new_size;
         }
         memmove(buffer + (length * 3), buffer, length * 3 * (volume_depth - 1));
