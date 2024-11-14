@@ -2589,7 +2589,7 @@ uint16_t ripple_base()
     } else {//randomly create new wave
       if (random16(IBN + 10000) <= (SEGMENT.intensity >> (SEGMENT.is2D()*3))) {
         ripples[i].state = 1;
-        ripples[i].pos = SEGMENT.is2D() ? ((random8(SEGENV.virtualWidth())<<8) | (random8(SEGENV.virtualHeight()))) : random16(SEGLEN);
+        ripples[i].pos = SEGMENT.is2D() ? ((random16(SEGENV.virtualWidth())<<8) | (random16(SEGENV.virtualHeight()))) : random16(SEGLEN);
         ripples[i].color = random8(); //color
       }
     }
@@ -5137,6 +5137,7 @@ static const char _data_FX_MODE_2DDNASPIRAL[] PROGMEM = "DNA Spiral@Scroll speed
 //     2D Drift        //
 /////////////////////////
 uint16_t mode_2DDrift() {              // By: Stepko   https://editor.soulmatelights.com/gallery/884-drift , Modified by: Andrew Tuline
+                                       // optimized for large panels by @softhack007
   if (!strip.isMatrix) return mode_static(); // not a 2D set-up
 
   const uint16_t cols = SEGMENT.virtualWidth();
@@ -5147,22 +5148,40 @@ uint16_t mode_2DDrift() {              // By: Stepko   https://editor.soulmateli
     SEGMENT.fill(BLACK);
   }
 
-  SEGMENT.fadeToBlackBy(128);
+  if (SEGMENT.intensity > 1) SEGMENT.fadeToBlackBy(128);
+  else SEGMENT.fill(BLACK);  // WLEDMM fill is faster than fade
+  const float maxDim = max(cols, rows)/2.0f;
 
-  const uint16_t maxDim = MAX(cols, rows)/2;
-  unsigned long t = strip.now / (32 - (SEGMENT.speed>>3));
-  unsigned long t_20 = t/20; // softhack007: pre-calculating this gives about 10% speedup
-  for (float i = 1; i < maxDim; i += 0.25) {
-    float angle = radians(t * (maxDim - i));
-    uint16_t myX = (cols>>1) + (int16_t)(sinf(angle) * i) + (cols%2);
-    uint16_t myY = (rows>>1) + (int16_t)(cosf(angle) * i) + (rows%2);
-    SEGMENT.setPixelColorXY(myX, myY, ColorFromPalette(SEGPALETTE, (i * 20) + t_20, 255, LINEARBLEND));
+  // WLEDMM calculate timebase in float, so we don't need to worry about rounding
+  const float strip_now = strip.now & 0x003FFFFF; // float can exactly represent numbers up to 22bit
+  float t;
+  if (maxDim < 6.0f)        t = strip_now / float(16U - (SEGMENT.speed>>4));  // up to 12 (faster)
+  else if (maxDim <= 16.0f) t = strip_now / float(32U - (SEGMENT.speed>>3));  // 12..32 (standard)
+  else if (maxDim <= 32.0f) t = strip_now / float(64U - (SEGMENT.speed>>2));  // 32..64  (slower)
+  else                      t = strip_now / float(256U -  SEGMENT.speed);     // above 64 (slowest)
+
+  // WLEDMM pre-calculate some values to speed up the main loop
+  const int colsCenter = (cols >> 1) + (cols % 2);
+  const int rowsCenter = (rows >> 1) + (rows % 2);
+  unsigned t_20 = t/20.0f; // softhack007: pre-calculating this gives about 10% speedup
+  const float step = (maxDim < 6.0f) ? 0.52f : (maxDim > 24.0f) ? 0.16666666f : 0.25f;  // WLEDMM more detail on larger panels
+
+  for (float i = 1.0f; i <= maxDim; i += step) {
+    unsigned i_20 = i * 20.0f;
+    float t_maxdim = t * (maxDim - i);
+    float angle = float(DEG_TO_RAD) * t_maxdim;
+    int mySin = sinf(angle) * i;
+    int myCos = cosf(angle) * i;
+
+    if ((unsigned(colsCenter+mySin) < cols) && (unsigned(rowsCenter+myCos) < rows)) // don't draw invisible pixels
+      SEGMENT.setPixelColorXY(colsCenter+mySin, rowsCenter+myCos, ColorFromPalette(SEGPALETTE, i_20 + t_20, 255, LINEARBLEND));
+    if ((SEGMENT.check1) && (unsigned(colsCenter+myCos) < cols) && (unsigned(rowsCenter+mySin) < rows))   
+      SEGMENT.setPixelColorXY(colsCenter+myCos, rowsCenter+mySin, ColorFromPalette(SEGPALETTE, i_20 + t_20, 255, LINEARBLEND)); // twin mode
   }
-  SEGMENT.blur(SEGMENT.intensity>>3);
-
+  SEGMENT.blur(SEGMENT.intensity>>((!SEGMENT.check2) * 3), SEGMENT.check2); // user-defined blur - thanks @dedehai
   return FRAMETIME;
 } // mode_2DDrift()
-static const char _data_FX_MODE_2DDRIFT[] PROGMEM = "Drift@Rotation speed,Blur amount;;!;2";
+static const char _data_FX_MODE_2DDRIFT[] PROGMEM = "Drift@Rotation speed,Blur,,,,Twin,Smear;;!;2;ix=0";
 
 
 //////////////////////////
@@ -5803,7 +5822,7 @@ uint16_t mode_2Dmatrix(void) {                  // Matrix2D. By Jeremy Williams.
 
     // spawn new falling code
     if (random8() <= SEGMENT.intensity || emptyScreen) {
-      uint8_t spawnX = random8(cols);
+      uint16_t spawnX = random16(cols);
       SEGMENT.setPixelColorXY(spawnX, 0, spawnColor);
       // update hint for next run
       SEGENV.aux0 = spawnX;
@@ -6276,8 +6295,8 @@ uint16_t mode_2Dcrazybees(void) {
     void aimed(uint_fast16_t w, uint_fast16_t h) {
       if (!true) //WLEDMM SuperSync
         random16_set_seed(strip.now);
-      aimX = random8(0, w);
-      aimY = random8(0, h);
+      aimX = random8(0, min(UINT8_MAX, int(w)));
+      aimY = random8(0, min(UINT8_MAX, int(h)));
       hue = random8();
       deltaX = abs(aimX - posX);
       deltaY = abs(aimY - posY);
@@ -6296,8 +6315,8 @@ uint16_t mode_2Dcrazybees(void) {
     SEGMENT.setUpLeds();
     SEGMENT.fill(BLACK);
     for (size_t i = 0; i < n; i++) {
-      bee[i].posX = random8(0, cols);
-      bee[i].posY = random8(0, rows);
+      bee[i].posX = random8(0, min(UINT8_MAX, int(cols)));
+      bee[i].posY = random8(0, min(UINT8_MAX, int(rows)));
       bee[i].aimed(cols, rows);
     }
   }
@@ -8421,7 +8440,7 @@ uint16_t mode_2Doctopus() {
 
   const uint16_t cols = SEGMENT.virtualWidth();
   const uint16_t rows = SEGMENT.virtualHeight();
-  const uint8_t mapp = 180 / MAX(cols,rows);
+  const uint16_t mapp = max(1, 180 / MAX(cols,rows)); // WLEDMM make sure this value is not 0
 
   typedef struct {
     int8_t angle;
@@ -8458,8 +8477,8 @@ uint16_t mode_2Doctopus() {
     SEGENV.aux1 = rows;
     *offsX = SEGMENT.custom1;
     *offsY = SEGMENT.custom2;
-    const uint8_t C_X = cols / 2 + (SEGMENT.custom1 - 128)*cols/255;
-    const uint8_t C_Y = rows / 2 + (SEGMENT.custom2 - 128)*rows/255;
+    const uint16_t C_X = cols / 2 + (SEGMENT.custom1 - 128)*cols/255;
+    const uint16_t C_Y = rows / 2 + (SEGMENT.custom2 - 128)*rows/255;
     for (int x = xStart; x < xEnd; x++) {
       for (int y = yStart; y < yEnd; y++) {
         rMap[XY(x, y)].angle  = int(40.7436f * atan2f((y - C_Y), (x - C_X)));  // avoid 128*atan2()/PI
