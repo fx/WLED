@@ -112,6 +112,7 @@ IRAM_ATTR_YN __attribute__((hot)) uint32_t color_fade(uint32_t c1, uint8_t amoun
     scaledcolor |= (g * scale) & 0x0000FF00;                                       // WLEDMM faster than right-left shift "" >>8 ) <<8"
     scaledcolor |= (b * scale) >> 8;
     return scaledcolor;
+  }
 }
 
 
