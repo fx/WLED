@@ -5375,9 +5375,20 @@ uint16_t mode_2Dgameoflife(void) { // Written by Ewoud Wijma, inspired by https:
     memset(cells, 0, dataSize);
     random16_set_seed(strip.now>>2); //seed the random generator
     unsigned cIndex = 0;
+    uint32_t xorshift32_state = random16();
+    const uint32_t threshold = (UINT32_MAX / 3);
     for (unsigned y = 0; y < rows; ++y) for (unsigned x = 0; x < cols; ++x, ++cIndex) {
       #if defined(ARDUINO_ARCH_ESP32)
-        bool setAlive = esp_random() < 1374389534; // ~32%
+        // bool setAlive = esp_random() < 1374389534; // ~32%
+        // bool setAlive = random16(100) < 32;
+        // bool setAlive = (rand() & 0xFF) < 86;
+        // bool setAlive = random8(3);
+        uint32_t myrand = xorshift32_state; 
+        myrand ^= myrand << 13;
+        myrand ^= myrand >> 17;
+        myrand ^= myrand << 5;
+        xorshift32_state = myrand;
+        bool setAlive = (myrand < threshold);
       #else
         bool setAlive = random16(100) < 32;
       #endif
