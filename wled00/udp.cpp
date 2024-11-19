@@ -707,6 +707,8 @@ void sendSysInfoUDP()
   data[38] = NODE_TYPE_ID_ESP32S3;
   #elif defined(CONFIG_IDF_TARGET_ESP32S2)
   data[38] = NODE_TYPE_ID_ESP32S2;
+  #elif defined(CONFIG_IDF_TARGET_ESP32P4)
+  data[38] = NODE_TYPE_ID_ESP32P4;
   #elif defined(ARDUINO_ARCH_ESP32)
   data[38] = NODE_TYPE_ID_ESP32;
   #else
@@ -767,7 +769,7 @@ extern "C" {
 }
 #endif
 
-uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t length, uint8_t *buffer, uint8_t bri, bool isRGBW, uint8_t outputs, uint16_t leds_per_output, uint8_t fps_limit)  {
+uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t length, uint8_t *buffer_in, uint8_t bri, bool isRGBW, uint8_t outputs, uint16_t leds_per_output, uint8_t fps_limit)  {
 
   if (!(apActive || interfacesInited) || !client[0] || !length) return 1;  // network not initialised or dummy/unset IP address  031522 ajn added check for ap
 
@@ -844,10 +846,10 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
         // write the colors, the write write(const uint8_t *buffer, size_t size)
         // function is just a loop internally too
         for (size_t i = 0; i < packetSize; i += (isRGBW?4:3)) {
-          ddpUdp.write(scale8(buffer[bufferOffset++], bri)); // R
-          ddpUdp.write(scale8(buffer[bufferOffset++], bri)); // G
-          ddpUdp.write(scale8(buffer[bufferOffset++], bri)); // B
-          if (isRGBW) ddpUdp.write(scale8(buffer[bufferOffset++], bri)); // W
+          ddpUdp.write(scale8(buffer_in[bufferOffset++], bri)); // R
+          ddpUdp.write(scale8(buffer_in[bufferOffset++], bri)); // G
+          ddpUdp.write(scale8(buffer_in[bufferOffset++], bri)); // B
+          if (isRGBW) ddpUdp.write(scale8(buffer_in[bufferOffset++], bri)); // W
         }
 
         if (!ddpUdp.endPacket()) {
@@ -866,7 +868,11 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
     {
       static unsigned long artnetlimiter = micros()+(1000000/fps_limit);
       while (artnetlimiter > micros()) {
-        delayMicroseconds(10); // Make WLED obey fps_limit and just delay here until we're ready to send a frame.
+        if (ArtNetSkipFrame) {
+          return 0; // Let WLED keep generating effect frames and we output an Art-Net frame when fps_limit is reached.
+        } else {
+          delayMicroseconds(10); // Make WLED obey fps_limit and just delay here until we're ready to send a frame.
+        }
       }
 
       /*
@@ -885,6 +891,27 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
       uint_fast16_t packetstotal = 0;
       #endif
       unsigned long timer = micros();
+
+      // Volumetric test code
+      uint8_t volume_depth = outputs*leds_per_output/length;
+      static byte* buffer = nullptr; // Declare static buffer
+      static size_t buffer_size = 0; // Track the buffer size
+
+      if (volume_depth > 1) { // always assume to buffer output
+        size_t new_size = (length * (isRGBW ? 4 : 3) * volume_depth);
+        if (buffer == nullptr || buffer_size != new_size) {
+          if (buffer != nullptr) {
+            heap_caps_free(buffer);
+          }
+          buffer = (byte *) heap_caps_calloc_prefer(new_size+15, sizeof(byte), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
+          buffer_size = new_size;
+        }
+        memmove(buffer + (length * 3), buffer, length * 3 * (volume_depth - 1));
+        memcpy(buffer, buffer_in, length * 3);
+        length *= volume_depth;
+      } else {
+        buffer = buffer_in;
+      }
 
       AsyncUDP artnetudp;// AsyncUDP so we can just blast packets.
 

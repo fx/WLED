@@ -219,7 +219,7 @@ void sendNTPPacket()
     #ifdef ESP8266
     WiFi.hostByName(ntpServerName, ntpServerIP, 750);
     #else
-    WiFi.hostByName(ntpServerName, ntpServerIP);
+    //WiFi.hostByName(ntpServerName, ntpServerIP);
     #endif
   }
 

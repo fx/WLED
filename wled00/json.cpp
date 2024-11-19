@@ -783,7 +783,11 @@ void serializeState(JsonObject root, bool forPreset, bool includeBri, bool segme
 #ifdef ARDUINO_ARCH_ESP32
 int getCoreResetReason(int core) {
   if (core >= ESP.getChipCores()) return 0;
+#if defined(ESP_IDF_VERSION) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  return((int)esp_rom_get_reset_reason(core));
+#else
   return((int)rtc_get_reset_reason(core));
+#endif
 }
 
 String resetCode2Info(int reason) {
@@ -1013,11 +1017,19 @@ void serializeInfo(JsonObject root)
   }
 
   JsonObject wifi_info = root.createNestedObject("wifi");
-  wifi_info[F("bssid")] = WiFi.BSSIDstr();
-  int qrssi = WiFi.RSSI();
-  wifi_info[F("rssi")] = qrssi;
-  wifi_info[F("signal")] = getSignalQuality(qrssi);
-  wifi_info[F("channel")] = WiFi.channel();
+  #ifdef ARDUINO_ARCH_ESP32P4
+    wifi_info[F("bssid")] = CLIENT_SSID;
+    int qrssi = 69;
+    wifi_info[F("rssi")] = qrssi;
+    wifi_info[F("signal")] = getSignalQuality(qrssi);
+    wifi_info[F("channel")] = 99;
+  #else
+    wifi_info[F("bssid")] = WiFi.BSSIDstr();
+    int qrssi = WiFi.RSSI();
+    wifi_info[F("rssi")] = qrssi;
+    wifi_info[F("signal")] = getSignalQuality(qrssi);
+    wifi_info[F("channel")] = WiFi.channel();
+  #endif
 
   JsonObject fs_info = root.createNestedObject("fs");
   fs_info["u"] = fsBytesUsed / 1000;
@@ -1027,10 +1039,10 @@ void serializeInfo(JsonObject root)
   root[F("ndc")] = nodeListEnabled ? (int)Nodes.size() : -1;
 
   #ifdef ARDUINO_ARCH_ESP32
-  #ifdef WLED_DEBUG
-    wifi_info[F("txPower")] = (int) WiFi.getTxPower();
-    wifi_info[F("sleep")] = (bool) WiFi.getSleep();
-  #endif
+  // #ifdef WLED_DEBUG
+  //   wifi_info[F("txPower")] = (int) WiFi.getTxPower();
+  //   wifi_info[F("sleep")] = (bool) WiFi.getSleep();
+  // #endif
   //#if !defined(CONFIG_IDF_TARGET_ESP32C2) && !defined(CONFIG_IDF_TARGET_ESP32C6) && !defined(CONFIG_IDF_TARGET_ESP32H2) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(CONFIG_IDF_TARGET_ESP32S3)
   #if CONFIG_IDF_TARGET_ESP32
     root[F("arch")] = "esp32";
@@ -1097,12 +1109,21 @@ void serializeInfo(JsonObject root)
 
   // begin WLEDMM
   #ifdef ARDUINO_ARCH_ESP32
+#if defined(ESP_IDF_VERSION) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  root[F("e32core0code")] = (int)esp_rom_get_reset_reason(0);
+  root[F("e32core0text")] = resetCode2Info(esp_rom_get_reset_reason(0));
+  if(ESP.getChipCores() > 1) {
+    root[F("e32core1code")] = (int)esp_rom_get_reset_reason(1);
+    root[F("e32core1text")] = resetCode2Info(esp_rom_get_reset_reason(1));
+  }
+#else
   root[F("e32core0code")] = (int)rtc_get_reset_reason(0);
   root[F("e32core0text")] = resetCode2Info(rtc_get_reset_reason(0));
   if(ESP.getChipCores() > 1) {
     root[F("e32core1code")] = (int)rtc_get_reset_reason(1);
     root[F("e32core1text")] = resetCode2Info(rtc_get_reset_reason(1));
   }
+#endif
   root[F("e32code")] = (int)getRestartReason();
   root[F("e32text")] = restartCode2Info(getRestartReason());
 
@@ -1113,21 +1134,21 @@ void serializeInfo(JsonObject root)
   root[F("e32speed")] = ESP.getCpuFreqMHz();
   root[F("e32flash")] = int((ESP.getFlashChipSize()/1024)/1024);
   root[F("e32flashspeed")] = int(ESP.getFlashChipSpeed()/1000000);
-  root[F("e32flashmode")] = int(ESP.getFlashChipMode());
-  switch (ESP.getFlashChipMode()) {
-    // missing: Octal modes
-    case FM_QIO:  root[F("e32flashtext")] = F(" (QIO)"); break;
-    case FM_QOUT: root[F("e32flashtext")] = F(" (QOUT)");break;
-    case FM_DIO:  root[F("e32flashtext")] = F(" (DIO)"); break;
-    case FM_DOUT: root[F("e32flashtext")] = F(" (DOUT or other)");break;
-    #if defined(CONFIG_IDF_TARGET_ESP32S3) && CONFIG_ESPTOOLPY_FLASHMODE_OPI
-      case FM_FAST_READ: root[F("e32flashtext")] = F(" (🚀OPI)");break;
-    #else
-      case FM_FAST_READ: root[F("e32flashtext")] = F(" (fast_read)");break;
-    #endif
-    case FM_SLOW_READ: root[F("e32flashtext")] = F(" (slow_read)");break;
-    default: root[F("e32flashtext")] = F(" (other)"); break;
-  }
+  // root[F("e32flashmode")] = int(ESP.getFlashChipMode());
+  // switch (ESP.getFlashChipMode()) {
+  //   // missing: Octal modes
+  //   case FM_QIO:  root[F("e32flashtext")] = F(" (QIO)"); break;
+  //   case FM_QOUT: root[F("e32flashtext")] = F(" (QOUT)");break;
+  //   case FM_DIO:  root[F("e32flashtext")] = F(" (DIO)"); break;
+  //   case FM_DOUT: root[F("e32flashtext")] = F(" (DOUT or other)");break;
+  //   #if defined(CONFIG_IDF_TARGET_ESP32S3) && CONFIG_ESPTOOLPY_FLASHMODE_OPI
+  //     case FM_FAST_READ: root[F("e32flashtext")] = F(" (🚀OPI)");break;
+  //   #else
+  //     case FM_FAST_READ: root[F("e32flashtext")] = F(" (fast_read)");break;
+  //   #endif
+  //   case FM_SLOW_READ: root[F("e32flashtext")] = F(" (slow_read)");break;
+  //   default: root[F("e32flashtext")] = F(" (other)"); break;
+  // }
 
   #else // for 8266
   root[F("e32core0code")] = (int)ESP.getResetInfoPtr()->reason;
@@ -1138,14 +1159,14 @@ void serializeInfo(JsonObject root)
   root[F("e32speed")] = ESP.getCpuFreqMHz();
   root[F("e32flash")] = int((ESP.getFlashChipRealSize()/1024)/1024);
   root[F("e32flashspeed")] = int(ESP.getFlashChipSpeed()/1000000);
-  root[F("e32flashmode")] = int(ESP.getFlashChipMode());
-  switch (ESP.getFlashChipMode()) {
-    case FM_QIO:  root[F("e32flashtext")] = F(" (QIO)"); break;
-    case FM_QOUT: root[F("e32flashtext")] = F(" (QOUT)");break;
-    case FM_DIO:  root[F("e32flashtext")] = F(" (DIO)"); break;
-    case FM_DOUT: root[F("e32flashtext")] = F(" (DOUT)");break;
-    default: root[F("e32flashtext")] = F(" (other)"); break;
-  }
+  // root[F("e32flashmode")] = int(ESP.getFlashChipMode());
+  // switch (ESP.getFlashChipMode()) {
+  //   case FM_QIO:  root[F("e32flashtext")] = F(" (QIO)"); break;
+  //   case FM_QOUT: root[F("e32flashtext")] = F(" (QOUT)");break;
+  //   case FM_DIO:  root[F("e32flashtext")] = F(" (DIO)"); break;
+  //   case FM_DOUT: root[F("e32flashtext")] = F(" (DOUT)");break;
+  //   default: root[F("e32flashtext")] = F(" (other)"); break;
+  // }
   #endif
   #if defined(WLED_DEBUG) || defined(WLED_DEBUG_HOST) || defined(SR_DEBUG) || defined(SR_STATS)
   // WLEDMM add status of Serial, including pin alloc
@@ -1368,30 +1389,30 @@ void serializePalettes(JsonObject root, AsyncWebServerRequest* request)
 void serializeNetworks(JsonObject root)
 {
   JsonArray networks = root.createNestedArray(F("networks"));
-  int16_t status = WiFi.scanComplete();
+  // int16_t status = WiFi.scanComplete();
 
-  switch (status) {
-    case WIFI_SCAN_FAILED:
-      WiFi.scanNetworks(true);
-      return;
-    case WIFI_SCAN_RUNNING:
-      return;
-  }
+  // switch (status) {
+  //   case WIFI_SCAN_FAILED:
+  //     WiFi.scanNetworks(true);
+  //     return;
+  //   case WIFI_SCAN_RUNNING:
+  //     return;
+  // }
 
-  for (int i = 0; i < status; i++) {
-    JsonObject node = networks.createNestedObject();
-    node["ssid"]    = WiFi.SSID(i);
-    node["rssi"]    = WiFi.RSSI(i);
-    node["bssid"]   = WiFi.BSSIDstr(i);
-    node["channel"] = WiFi.channel(i);
-    node["enc"]     = WiFi.encryptionType(i);
-  }
+  // for (int i = 0; i < status; i++) {
+  //   JsonObject node = networks.createNestedObject();
+  //   node["ssid"]    = WiFi.SSID(i);
+  //   node["rssi"]    = WiFi.RSSI(i);
+  //   node["bssid"]   = WiFi.BSSIDstr(i);
+  //   node["channel"] = WiFi.channel(i);
+  //   node["enc"]     = WiFi.encryptionType(i);
+  // }
 
-  WiFi.scanDelete();
+  // WiFi.scanDelete();
 
-  if (WiFi.scanComplete() == WIFI_SCAN_FAILED) {
-    WiFi.scanNetworks(true);
-  }
+//   if (WiFi.scanComplete() == WIFI_SCAN_FAILED) {
+//     WiFi.scanNetworks(true);
+//   }
 }
 
 void serializeNodes(JsonObject root)

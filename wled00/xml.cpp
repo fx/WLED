@@ -374,16 +374,16 @@ void getSettingsJS(AsyncWebServerRequest* request, byte subPage, char* dest) //W
       sappends('m',SET_F("(\"sip\")[0]"),(char*)F("Not connected"));
     }
 
-    if (WiFi.softAPIP()[0] != 0) //is active
-    {
-      char s[16];
-      IPAddress apIP = WiFi.softAPIP();
-      sprintf(s, "%d.%d.%d.%d", apIP[0], apIP[1], apIP[2], apIP[3]);
-      sappends('m',SET_F("(\"sip\")[1]"),s);
-    } else
-    {
+    // if (WiFi.softAPIP()[0] != 0) //is active
+    // {
+    //   char s[16];
+    //   IPAddress apIP = WiFi.softAPIP();
+    //   sprintf(s, "%d.%d.%d.%d", apIP[0], apIP[1], apIP[2], apIP[3]);
+    //   sappends('m',SET_F("(\"sip\")[1]"),s);
+    // } else
+    // {
       sappends('m',SET_F("(\"sip\")[1]"),(char*)F("Not active"));
-    }
+    // }
 
     #ifndef WLED_DISABLE_ESPNOW
     if (last_signal_src[0] != 0) //Have seen an ESP-NOW Remote
@@ -861,6 +861,10 @@ void getSettingsJS(AsyncWebServerRequest* request, byte subPage, char* dest) //W
     oappend(SET_F(".bin<br>("));
     #if defined(CONFIG_IDF_TARGET_ESP32C3)
     oappend(SET_F("ESP32-C3"));
+    #elif defined(CONFIG_IDF_TARGET_ESP32C6)
+    oappend(SET_F("ESP32-C6"));
+    #elif defined(CONFIG_IDF_TARGET_ESP32P4)
+    oappend(SET_F("ESP32-P4"));
     #elif defined(CONFIG_IDF_TARGET_ESP32S3)
     oappend(SET_F("ESP32-S3"));
     #elif defined(CONFIG_IDF_TARGET_ESP32S2)

@@ -76,10 +76,21 @@ void WS2812FX::setUpMatrix() {
       }
       if ((size > 0) && (customMappingTable == nullptr)) { // second try
         DEBUG_PRINTLN("setUpMatrix: trying to get fresh memory block.");
-        customMappingTable = (uint16_t*) calloc(size, sizeof(uint16_t));
+        // #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM) && defined(WLED_USE_PSRAM)
+        // if (psramFound()){
+        //   customMappingTable = (uint16_t*) ps_calloc(size, sizeof(uint16_t));
+        // } else {
+        //   customMappingTable = (uint16_t*) calloc(size, sizeof(uint16_t));
+        // }
+        // #else
+        // customMappingTable = (uint16_t*) calloc(size, sizeof(uint16_t));
+        // #endif
+        customMappingTable = (uint16_t*) heap_caps_calloc_prefer(size, sizeof(uint16_t),2,MALLOC_CAP_SPIRAM,MALLOC_CAP_INTERNAL);
         if (customMappingTable == nullptr) { 
           USER_PRINTLN("setUpMatrix: alloc failed");
           errorFlag = ERR_LOW_MEM; // WLEDMM raise errorflag
+        } else {
+          USER_PRINTLN("setUpMatrix: alloc failed");
         }
       }
       if (customMappingTable != nullptr) customMappingTableSize = size;
@@ -283,7 +294,7 @@ void IRAM_ATTR __attribute__((hot)) Segment::setPixelColorXY_fast(int x, int y, 
     else ledsrgb[i] = fastled_col;
   }
 
-#if 0 // this is still a dangerous optimization
+#if 1 // this is still a dangerous optimization
   if ((i < UINT_MAX) && sameColor && (call > 0) && (!transitional)  && (mode != FX_MODE_2DSCROLLTEXT) && (ledsrgb[i] == CRGB(scaled_col))) return; // WLEDMM looks like nothing to do
 #endif
 
@@ -345,7 +356,7 @@ void IRAM_ATTR_YN Segment::setPixelColorXY(int x, int y, uint32_t col) //WLEDMM:
     col = color_fade(col, _bri_t);
   }
 
-#if 0 // this is a dangerous optimization
+#if 1 // this is a dangerous optimization
   if ((i < UINT_MAX) && sameColor && (call > 0) && (!transitional) && (mode != FX_MODE_2DSCROLLTEXT) && (ledsrgb[i] == CRGB(col))) return; // WLEDMM looks like nothing to do
 #endif
 
@@ -847,7 +858,6 @@ void Segment::drawArc(unsigned x0, unsigned y0, int radius, uint32_t color, uint
   const int endx = min(width, int(x0)+radius+1);
   const int starty = max(0, int(y0)-radius-1);
   const int endy = min(height, int(y0)+radius+1);
-
   for (int x=startx; x<endx; x++) {
     int newX2 = x - int(x0); newX2 *= newX2;   // (distance from centerX) ^2
     for (int y=starty; y<endy; y++) {

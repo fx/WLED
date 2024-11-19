@@ -47,6 +47,7 @@ String PinManagerClass::getOwnerText(PinOwner tag) {
     case PinOwner::SPI_RAM    : return(F("PSRAM")); break;          // 'SpiR' == SPI RAM (aka PSRAM)
 #endif
     case PinOwner::DMX        : return(F("DMX out")); break;        // 'DMX'  == hard-coded to IO2
+    case PinOwner::WiFi       : return(F("ESP-Hosted WiFi")); break; 
     case PinOwner::HW_I2C     : return(F("I2C (hw)")); break;            // 'I2C'  == hardware I2C pins (4&5 on ESP8266, 21&22 on ESP32)
     case PinOwner::HW_SPI     : return(F("SPI (hw)")); break;            // 'SPI'  == hardware (V)SPI pins (13,14&15 on ESP8266, 5,18&23 on ESP32)
     case PinOwner::DMX_INPUT  : return(F("DMX Input")); break;            
@@ -136,14 +137,16 @@ String PinManagerClass::getPinSpecialText(int gpio) {  // special purpose PIN in
       // ESP32-C3
       if (gpio > 17 && gpio < 20) return (F("USB (CDC) or JTAG"));
       //if (gpio == 2 || gpio == 8 || gpio == 9) return (F("(strapping pin)"));
-
+    #elif defined(CONFIG_IDF_TARGET_ESP32C6)
+      // ESP32-C6
+      if (gpio > 11 && gpio < 14) return (F("USB (CDC) / JTAG"));
     #else
       // "classic" ESP32, or ESP32 PICO-D4
       //if (gpio == 0 || gpio == 2 || gpio == 5) return (F("(strapping pin)"));
       //if (gpio == 12) return (F("(strapping pin - MTDI)"));
       //if (gpio == 15) return (F("(strapping pin - MTDO)"));
       //if (gpio > 11 && gpio < 16) return (F("(optional) JTAG debug probe"));
-      #if defined(BOARD_HAS_PSRAM)
+      #if defined(BOARD_HAS_PSRAM) && !defined(ARDUINO_ARCH_ESP32P4)
         if (gpio == 16 || gpio == 17) return (F("(reserved) PSRAM"));
       #endif
       #if defined(ARDUINO_TTGO_T7_V14_Mini32) || defined(ARDUINO_LOLIN_D32_PRO) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32_V2)
@@ -266,7 +269,7 @@ String PinManagerClass::getPinSpecialText(int gpio) {  // special purpose PIN in
   // ADC PINs - not for 8266
   if (digitalPinToAnalogChannel(gpio) >= 0) {  // ADC pin
   #ifdef SOC_ADC_CHANNEL_NUM
-    if (digitalPinToAnalogChannel(gpio) < SOC_ADC_CHANNEL_NUM(0)) return(F("ADC-1")); // for ESP32-S3, ESP32-S2, ESP32-C3 
+    if (digitalPinToAnalogChannel(gpio) < SOC_ADC_CHANNEL_NUM(0)) return(F("ADC-1")); // for ESP32-S3, ESP32-S2, ESP32-C3 , ESP32-C6
   #else
     if (digitalPinToAnalogChannel(gpio) < 8) return(F("ADC-1"));   // for classic ESP32
   #endif
@@ -659,7 +662,7 @@ bool PinManagerClass::joinWire(int8_t pinSDA, int8_t pinSCL) {
       if (gpio == A0) return true;   // for 8266
     #else                            // for ESP32 variants
       #ifdef SOC_ADC_CHANNEL_NUM
-        if (digitalPinToAnalogChannel(gpio) < SOC_ADC_CHANNEL_NUM(0)) return true; // ADC1 on ESP32-S3, ESP32-S2, ESP32-C3 
+        if (digitalPinToAnalogChannel(gpio) < SOC_ADC_CHANNEL_NUM(0)) return true; // ADC1 on ESP32-S3, ESP32-S2, ESP32-C3, ESP32-C6
       #else
         if (digitalPinToAnalogChannel(gpio) < 8) return true;   // ADC1 on classic ESP32
       #endif
@@ -690,7 +693,7 @@ bool PinManagerClass::joinWire(int8_t pinSDA, int8_t pinSCL) {
     #else                                                   // for ESP32 variants
       if ((adcUnit != ADC1) && (adcUnit != ADC2)) return(PM_NO_PIN); // catch errors
 
-      #if defined(SOC_ADC_MAX_CHANNEL_NUM)                                   // for ESP32-S3, ESP32-S2, ESP32-C3
+      #if defined(SOC_ADC_MAX_CHANNEL_NUM)                                   // for ESP32-S3, ESP32-S2, ESP32-C3, ESP32-C6
       int8_t analogChannel = (adcUnit == ADC1) ? adcPort : (SOC_ADC_MAX_CHANNEL_NUM + adcPort);
       if (adcPort >= SOC_ADC_MAX_CHANNEL_NUM) analogChannel = 255;
       #else                                                                  // for classic ESP32
@@ -737,6 +740,11 @@ bool PinManagerClass::isPinOk(byte gpio, bool output) const
     if (gpio > 11 && gpio < 18) return false;     // 11-17 SPI FLASH
     #if ARDUINO_USB_CDC_ON_BOOT == 1 || ARDUINO_USB_DFU_ON_BOOT == 1
     if (gpio > 17 && gpio < 20) return false;     // 18-19 USB-JTAG
+  #elif defined(CONFIG_IDF_TARGET_ESP32C6)
+    // https://docs.espressif.com/projects/esp-idf/en/latest/esp32c6/api-reference/peripherals/gpio.html
+    // strapping pins: 4, 5, 8, 9
+    if (gpio > 11 && gpio < 14) return false;     // 12-13 USB-JTAG
+    if (gpio > 23 && gpio < 31) return false;     // 24-30 SPI FLASH
     #endif
   #elif defined(CONFIG_IDF_TARGET_ESP32S3)
     // 00 to 18 are for general use. Be careful about straping pins GPIO0 and GPIO3 - these may be pulled-up or pulled-down on your board.
@@ -754,6 +762,16 @@ bool PinManagerClass::isPinOk(byte gpio, bool output) const
     if (gpio > 21 && gpio < 33) return false;     // 22 to 32: not connected + SPI FLASH
     // JTAG: GPIO39-42 are usually used for inline debugging
     // GPIO46 is input only and pulled down
+  #elif defined(CONFIG_IDF_TARGET_ESP32P4)
+    // strapping pins: ???
+    // Hide all pins not available on connector except pins we need to assign to things later, like I2S
+    if (gpio > 13 && gpio < 20) return false;     // I2S pins and ESP-Hosted WiFi pins
+    if (gpio > 27 && gpio < 32) return false;     // Ethernet pins
+    if (gpio > 33 && gpio < 36) return false;     // Ethernet pins - boot button is on 35 and works... but messes with Ethernet if enabled in WLED
+    if (gpio > 48 && gpio < 55) return false;     // Ethernet pins & others
+    if (gpio > 38 && gpio < 45) return false;     // SD1 Pins
+    // NOTE: GPIO53 and 54 are on the connector, but are used for other things.
+    // We could likely allow 53 as it's for audio amp output, but 54 is used for resetting the C6 board
   #else
     if (gpio > 5 && gpio < 12) return false;      //SPI flash pins
   #endif
@@ -775,7 +793,7 @@ PinOwner PinManagerClass::getPinOwner(byte gpio) const {
 }
 
 #ifdef ARDUINO_ARCH_ESP32
-#if defined(CONFIG_IDF_TARGET_ESP32C3)
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6)
   #define MAX_LED_CHANNELS 6
 #else
   #if defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3)

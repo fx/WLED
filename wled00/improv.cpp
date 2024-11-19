@@ -10,7 +10,7 @@
   #define DIMPROV_PRINTF(x...)
 #endif
 
-#if defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32S3)
+#if defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6) || defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32P4)
 #undef WLED_DISABLE_IMPROV_WIFISCAN
 #define WLED_DISABLE_IMPROV_WIFISCAN
 #endif
@@ -94,7 +94,7 @@ void handleImprovPacket() {
             case ImprovRPCType::Command_Wifi: parseWiFiCommand(rpcData); break;
             case ImprovRPCType::Request_State: {
               uint8_t improvState = 0x02; //authorized
-              if (WLED_WIFI_CONFIGURED) improvState = 0x03; //provisioning
+              // if (WLED_WIFI_CONFIGURED) improvState = 0x03; //provisioning
               if (Network.isConnected()) improvState = 0x04; //provisioned
               sendImprovStateResponse(improvState, false);
               if (improvState == 0x04) sendImprovIPRPCResult(ImprovRPCType::Request_State);
@@ -199,10 +199,14 @@ void sendImprovInfoResponse() {
       "esp8266"
     #elif CONFIG_IDF_TARGET_ESP32C3
       "esp32-c3"
+    #elif CONFIG_IDF_TARGET_ESP32C6
+      "esp32-c6"
     #elif CONFIG_IDF_TARGET_ESP32S2
       "esp32-s2"
     #elif CONFIG_IDF_TARGET_ESP32S3
       "esp32-s3"
+    #elif CONFIG_IDF_TARGET_ESP32P4
+      "esp32-p4"
     #else // ESP32
       "esp32"
     #endif

@@ -273,7 +273,7 @@ BusPwm::BusPwm(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWhite) {
     deallocatePins(); return;
     }
     _pins[i] = currentPin; //store only after allocatePin() succeeds
-    #ifdef ESP8266
+    #if defined(ESP8266) || defined (ARDUINO_ARCH_ESP32P4)
     pinMode(_pins[i], OUTPUT);
     #else
     ledcSetup(_ledcStart + i, _frequency, 8);
@@ -393,7 +393,7 @@ void BusPwm::deallocatePins() {
   for (uint8_t i = 0; i < numPins; i++) {
     pinManager.deallocatePin(_pins[i], PinOwner::BusPwm);
     if (!pinManager.isPinOk(_pins[i])) continue;
-    #ifdef ESP8266
+    #if defined(ESP8266) || defined (ARDUINO_ARCH_ESP32P4)
     digitalWrite(_pins[i], LOW); //turn off PWM interrupt
     #else
     if (_ledcStart < 16) ledcDetachPin(_pins[i]);
@@ -446,7 +446,6 @@ uint8_t BusOnOff::getPins(uint8_t* pinArray) const {
   pinArray[0] = _pin;
   return 1;
 }
-
 
 BusNetwork::BusNetwork(BusConfig &bc, const ColorOrderMap &com) : Bus(bc.type, bc.start, bc.autoWhite), _colorOrderMap(com) {
   _valid = false;
@@ -849,6 +848,14 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   mxconfig.gpio.c = 19;
   mxconfig.gpio.d = 21;
   mxconfig.gpio.e = 12;
+
+  // mxconfig.double_buff = true; // <------------- Turn on double buffer
+  // mxconfig.driver = HUB75_I2S_CFG::ICN2038S;  // experimental - use specific shift register driver
+  //mxconfig.latch_blanking = 3;
+  // mxconfig.i2sspeed = HUB75_I2S_CFG::HZ_10M;  // experimental - 5MHZ should be enugh, but colours looks slightly better at 10MHz
+  //mxconfig.min_refresh_rate = 90;
+  //mxconfig.min_refresh_rate = 120;
+  // mxconfig.clkphase = false;  // can help in case that the leftmost column is invisible, or pixels on the right side "bleeds out" to the left.
 
 #else
   USER_PRINTLN("MatrixPanel_I2S_DMA - Default pins");

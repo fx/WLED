@@ -3,6 +3,15 @@
 /*
  * Registers pins so there is no attempt for two interfaces to use the same pin
  */
+
+#ifdef ARDUINO_ARCH_ESP32
+// get prototypes for GPIO_IS_VALID_GPIO and GPIO_IS_VALID_OUTPUT_GPIO
+extern "C" {
+#include "esp32-hal.h"
+#include "driver/gpio.h"
+}
+#endif
+
 #include <Arduino.h>
 #include "const.h" // for USERMOD_* values
 
@@ -37,6 +46,7 @@ enum struct PinOwner : uint8_t {
   HW_SPI        = 0x8C,   // 'SPI'       == hardware (V)SPI pins (13,14&15 on ESP8266, 5,18&23 on ESP32)
   DMX_INPUT     = 0x8D,   // 'DMX_INPUT' == DMX input via serial
   HUB75         = 0x8E,   // 'Hub75' == Hub75 driver 
+  WiFi          = 0x8F,   // 'ESP-HOSTED == Pins for ESP32-C6 submodule for wifi on the ESP32-P4
   // Use UserMod IDs from const.h here
   UM_Unspecified       = USERMOD_ID_UNSPECIFIED,        // 0x01
   UM_Example           = USERMOD_ID_EXAMPLE,            // 0x02 // Usermod "usermod_v2_example.h"
@@ -75,10 +85,10 @@ class PinManagerClass {
   PinOwner ownerTag[WLED_NUM_PINS] = { PinOwner::None };
   PinOwner ownerConflict[WLED_NUM_PINS] = { PinOwner::None }; // WLEDMM: record pin alloc conflicts
   #else
-  #define WLED_NUM_PINS 50
-  uint8_t pinAlloc[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; //WLEDMM bugfix - 56bit, 1 bit per pin, we use 50 bits on -S3
+  #define WLED_NUM_PINS 55 // ESP32-P4 has 54 pins
+  uint8_t pinAlloc[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; //WLEDMM bugfix - 56bit, 1 bit per pin, we use 54 bits on -S3
   uint8_t ledcAlloc[2] = {0x00, 0x00}; //16 LEDC channels
-  PinOwner ownerTag[WLED_NUM_PINS] = { PinOwner::None }; // new MCU's have up to 50 GPIO
+  PinOwner ownerTag[WLED_NUM_PINS] = { PinOwner::None }; // new MCU's have up to 54 GPIO
   PinOwner ownerConflict[WLED_NUM_PINS] = { PinOwner::None }; // WLEDMM: record pin alloc conflicts
   #endif
   struct {

@@ -884,7 +884,8 @@ class WS2812FX {  // 96 bytes
     }
 
     static WS2812FX* getInstance(void) { return instance; }
-
+    uint16_t* getCustomMappingTable() const { return customMappingTable; } // TroyHacks for doing dumb things
+    
     void
 #ifdef WLED_DEBUG
       printSize(),

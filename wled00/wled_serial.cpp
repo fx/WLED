@@ -76,8 +76,8 @@ void sendBytes(){
 }
 
 bool canUseSerial(void) {   // WLEDMM returns true if Serial can be used for debug output (i.e. not configured for other purpose)
-  #if defined(CONFIG_IDF_TARGET_ESP32C3) && ARDUINO_USB_CDC_ON_BOOT && !defined(WLED_DEBUG_HOST)
-  //  on -C3, USB CDC blocks if disconnected! so check if Serial is active before printing to it.
+  #if ARDUINO_USB_CDC_ON_BOOT && !defined(WLED_DEBUG_HOST)
+  //  USB CDC blocks if disconnected! so check if Serial is active before printing to it.
   if (!Serial) return false;
   #endif
   if (pinManager.isPinAllocated(hardwareTX) && (pinManager.getPinOwner(hardwareTX) != PinOwner::DebugOut)) 
@@ -121,7 +121,9 @@ void handleSerial()
           return;
         } else if (next == 'v') {
           Serial.print("WLED"); Serial.write(' '); Serial.println(VERSION);
-
+        } else if (next == 'F') {
+          ArtNetSkipFrame = !ArtNetSkipFrame;
+          USER_PRINTF("Art-Net Skip-Frame is now %s.\n",ArtNetSkipFrame?"ON":"OFF");
         } else if (next == '^') {
           #ifdef ARDUINO_ARCH_ESP32
           esp_err_t err;
@@ -152,6 +154,14 @@ void handleSerial()
           #endif
         } else if (next == 'X') {
           forceReconnect = true; // WLEDMM - force reconnect via Serial
+        } else if (next == 'R') {
+          Serial.print("Rebooting ");
+          for (int i=0;i<5;i++) {
+            Serial.print(".");
+            delay(200);
+          }
+          Serial.println(" now!");
+          ESP.restart();  // WLEDMM - force reboot via Serial
         } else if (next == 0xB0) {updateBaudRate( 115200);
         } else if (next == 0xB1) {updateBaudRate( 230400);
         } else if (next == 0xB2) {updateBaudRate( 460800);

@@ -227,7 +227,6 @@ class BusDigital : public Bus {
     inline void show();
 
     bool canShow() override;
-
     void setBrightness(uint8_t b, bool immediate);
 
     void setStatusPixel(uint32_t c);
@@ -316,7 +315,6 @@ class BusOnOff : public Bus {
 
     uint32_t getPixelColor(uint16_t pix) const;
     uint32_t getPixelColorRestored(uint16_t pix) const override { return getPixelColor(pix);}  // WLEDMM BusOnOff ignores brightness
-
     void show();
 
     uint8_t getPins(uint8_t* pinArray)  const;

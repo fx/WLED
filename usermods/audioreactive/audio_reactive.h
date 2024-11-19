@@ -1942,7 +1942,7 @@ class AudioReactive : public Usermod {
       // Reset I2S peripheral for good measure - not needed in esp-idf v4.4.x and later.
     #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 4, 0)
       i2s_driver_uninstall(I2S_NUM_0);   // E (696) I2S: i2s_driver_uninstall(2006): I2S port 0 has not installed
-      #if !defined(CONFIG_IDF_TARGET_ESP32C3)
+      #if !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32P4)
         delay(100);
         periph_module_reset(PERIPH_I2S0_MODULE);   // not possible on -C3
       #endif
@@ -2056,7 +2056,16 @@ class AudioReactive : public Usermod {
           if ((sclPin >= 0) && (i2c_scl < 0)) i2c_scl = sclPin;
           if (i2c_sda >= 0) sdaPin = -1;                        // -1 = use global
           if (i2c_scl >= 0) sclPin = -1;
-
+        case 9:
+          DEBUGSR_PRINTLN(F("AR: ES8311 Source (Mic)"));
+          audioSource = new ES8311Source(SAMPLE_RATE, BLOCK_SIZE, 1.0f);
+          //useInputFilter = 0; // to disable low-cut software filtering and restore previous behaviour
+          delay(100);
+          // WLEDMM align global pins
+          if ((sdaPin >= 0) && (i2c_sda < 0)) i2c_sda = sdaPin; // copy usermod prefs into globals (if globals not defined)
+          if ((sclPin >= 0) && (i2c_scl < 0)) i2c_scl = sclPin;
+          if (i2c_sda >= 0) sdaPin = -1;                        // -1 = use global
+          if (i2c_scl >= 0) sclPin = -1;
           if (audioSource) audioSource->initialize(i2swsPin, i2ssdPin, i2sckPin, mclkPin);
           break;
 
@@ -2068,7 +2077,7 @@ class AudioReactive : public Usermod {
             audioSyncEnabled = AUDIOSYNC_REC; // force udp sound receive mode
           break;
 
-        #if  !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32S3)
+        #if  !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32P4)
         // ADC over I2S is only possible on "classic" ESP32
         case 0:
         default:
@@ -3002,6 +3011,11 @@ class AudioReactive : public Usermod {
       #else
         oappend(SET_F("addOption(dd,'AC101 ☾',8);"));
       #endif
+      #if SR_DMTYPE==9
+        oappend(SET_F("addOption(dd,'ES8311 ☾ (⎌)',9);"));
+      #else
+        oappend(SET_F("addOption(dd,'ES8311 ☾',9);"));
+      #endif
       #ifdef SR_SQUELCH
         oappend(SET_F("addInfo(ux+':config:squelch',1,'<i>&#9100; ")); oappendi(SR_SQUELCH); oappend("</i>');");  // 0 is field type, 1 is actual field
       #endif
@@ -3162,7 +3176,7 @@ class AudioReactive : public Usermod {
 
       oappend(SET_F("addInfo(uxp,3,'<i>master clock</i>','I2S MCLK');"));
       oappend(SET_F("dRO(uxp,3);")); // disable read only pins
-      #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32S3)
+      #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32P4)
         oappend(SET_F("dOpt(uxp,3,2,2);")); //only use -1, 0, 1 or 3
         oappend(SET_F("dOpt(uxp,3,4,39);")); //only use -1, 0, 1 or 3
       #endif

@@ -28,7 +28,8 @@
     #define WLED_MAX_BUSSES 3
     #define WLED_MIN_VIRTUAL_BUSSES 2
   #else
-    #if defined(CONFIG_IDF_TARGET_ESP32C3)    // 2 RMT, 6 LEDC, only has 1 I2S but NPB does not support it ATM
+    #if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6)  // C6 is very similar to C3
+                                              // 2 RMT, 6 LEDC, only has 1 I2S but NPB does not support it ATM
       #define WLED_MAX_BUSSES 3               // will allow 2 digital & 1 analog (or the other way around)
       #define WLED_MIN_VIRTUAL_BUSSES 3
     #elif defined(CONFIG_IDF_TARGET_ESP32S2)  // 4 RMT, 8 LEDC, only has 1 I2S bus, supported in NPB
@@ -285,7 +286,7 @@
 #define BTN_TYPE_ANALOG_INVERTED  8
 
 //Ethernet board types
-#define WLED_NUM_ETH_TYPES       12 //WLEDMM +1 for Olimex ESP32-Gateway
+#define WLED_NUM_ETH_TYPES       13 //WLEDMM +1 for Olimex ESP32-Gateway +1 for W5500
 
 #define WLED_ETH_NONE             0
 #define WLED_ETH_WT32_ETH01       1
@@ -299,6 +300,7 @@
 #define WLED_ETH_ABCWLEDV43ETH    9
 #define WLED_ETH_SERG74          10
 #define WLED_ETH_OLIMEX_GTW      11
+#define WLED_ETH_W5500           12
 
 //Hue error codes
 #define HUE_ERROR_INACTIVE        0
@@ -408,7 +410,7 @@
   #ifdef ESP8266
     #define MAX_LED_MEMORY 4000
   #else
-    #if defined(ARDUINO_ARCH_ESP32S2) || defined(ARDUINO_ARCH_ESP32C3)
+    #if defined(ARDUINO_ARCH_ESP32S2) || defined(ARDUINO_ARCH_ESP32C3) || defined(ARDUINO_ARCH_ESP32C6)
       #define MAX_LED_MEMORY 32000
     #else
       #define MAX_LED_MEMORY 64000
@@ -435,7 +437,11 @@
   #if !defined(USERMOD_AUDIOREACTIVE)
     #define SETTINGS_STACK_BUF_SIZE 3834   // WLEDMM added 696+32 bytes of margin (was 3096)
   #else
-    #define SETTINGS_STACK_BUF_SIZE 4000   // WLEDMM more buffer for audioreactive UI (add '-D CONFIG_ASYNC_TCP_TASK_STACK_SIZE=9216' to your build_flags)
+    #if defined(MAX_LEDS_PER_BUS) && MAX_LEDS_PER_BUS > 2048
+      #define SETTINGS_STACK_BUF_SIZE 5500   // WLEDMM more buffer for audioreactive UI (add '-D CONFIG_ASYNC_TCP_TASK_STACK_SIZE=9216' to your build_flags)
+    #else 
+      #define SETTINGS_STACK_BUF_SIZE 4100
+    #endif
   #endif
 #endif
 
@@ -536,11 +542,13 @@
 // which GPIO pins are actually used in a hardware layout (controller board)
 //WLEDMM: unchangeable pins are not treated here by undef them, but elsewhere in the code 
 // defaults for 1st I2C on ESP32 (Wire global)
-#ifndef HW_PIN_SCL
-  #define HW_PIN_SCL -1 //WLEDMM if not defined, -1 will be used (not SCL/22) (also for esp8266?)
-#endif
-#ifndef HW_PIN_SDA
-  #define HW_PIN_SDA -1 //WLEDMM if not defined, -1 will be used (not SDA/21) (also for esp8266?)
+#ifndef ARDUINO_ARCH_ESP32P4 
+  #ifndef HW_PIN_SCL
+    #define HW_PIN_SCL -1 //WLEDMM if not defined, -1 will be used (not SCL/22) (also for esp8266?)
+  #endif
+  #ifndef HW_PIN_SDA
+    #define HW_PIN_SDA -1 //WLEDMM if not defined, -1 will be used (not SDA/21) (also for esp8266?)
+  #endif
 #endif
 
 // HW_PIN_SCLKSPI & HW_PIN_MOSISPI & HW_PIN_MISOSPI are used for information in usermods settings page and usermods themselves
@@ -563,6 +571,12 @@
   #define IRAM_ATTR_YN IRAM_ATTR
 #else
   #define IRAM_ATTR_YN
+#endif
+
+#ifdef ARDUINO_ARCH_ESP32
+#if defined(ESP_IDF_VERSION) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#define pcTaskGetTaskName pcTaskGetName
+#endif
 #endif
 
 #endif
