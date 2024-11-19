@@ -769,14 +769,30 @@ extern "C" {
 }
 #endif
 
-uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t length, uint8_t *buffer_in, uint8_t bri, bool isRGBW, uint8_t outputs, uint16_t leds_per_output, uint8_t fps_limit)  {
+uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t length, uint8_t *buffer, uint8_t bri, bool isRGBW, uint8_t outputs, uint16_t leds_per_output, uint8_t fps_limit)  {
 
   if (!(apActive || interfacesInited) || !client[0] || !length) return 1;  // network not initialised or dummy/unset IP address  031522 ajn added check for ap
 
   // For some reason, this is faster outside of the case block...
   //
-  static byte *packet_buffer = (byte *) heap_caps_calloc_prefer(530, sizeof(byte), 3, MALLOC_CAP_IRAM_8BIT, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM); // MALLOC_CAP_TCM seems to have alignment issues.
+  #ifdef ESP32
+  static byte *packet_buffer = (byte *) heap_caps_calloc_prefer(530, sizeof(byte), 2, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM);
+  #else
+  static byte *packet_buffer = (byte *) calloc(530, sizeof(byte));
+  #endif
   if (packet_buffer[0] != 0x41) memcpy(packet_buffer, ART_NET_HEADER, 12); // copy in the Art-Net header if it isn't there already
+
+  // Volumetric test code
+  // static byte *buffer = (byte *) heap_caps_calloc_prefer(length*3*72, sizeof(byte), 3, MALLOC_CAP_IRAM_8BIT, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT); // MALLOC_CAP_TCM seems to have alignment issues.
+  // memmove(buffer+(length*3),buffer,length*3*7);
+  // memcpy(buffer,buffer_in,length*3);
+  // framenumber++;
+  // if (framenumber >= 8) {
+  //   framenumber = 0;
+  // } else {
+  //   // return 0;
+  // }
+  // length *= 8;
 
   switch (type) {
     case 0: // DDP

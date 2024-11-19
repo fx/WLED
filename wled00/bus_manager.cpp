@@ -473,17 +473,11 @@ BusNetwork::BusNetwork(BusConfig &bc, const ColorOrderMap &com) : Bus(bc.type, b
       break;
   }
   _UDPchannels = _rgbw ? 4 : 3;
-  // #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM) && defined(WLED_USE_PSRAM)
-  // if (psramFound()){
-  //   _data = (byte*) ps_calloc((bc.count * _UDPchannels)+15, sizeof(byte)); // adding 15 as SIMD math is aligned to 16 units per calculation
-  // } else {
-  //   _data = (byte*) calloc((bc.count * _UDPchannels)+15, sizeof(byte));
-  // }
-  // #else
-  // _data = (byte*) calloc((bc.count * _UDPchannels)+15, sizeof(byte));
-  // #endif
-  _data = (byte*) heap_caps_calloc_prefer((bc.count * _UDPchannels)+15, sizeof(byte), 3, MALLOC_CAP_IRAM_8BIT, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM);
-
+  #ifdef ESP32
+  _data = (byte*) heap_caps_calloc_prefer((bc.count * _UDPchannels)+15, sizeof(byte), 3, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM);
+  #else
+  _data = (byte*) calloc((bc.count * _UDPchannels)+15, sizeof(byte));
+  #endif
   if (_data == nullptr) return;
   _len = bc.count;
   _colorOrder = bc.colorOrder;
@@ -496,7 +490,7 @@ BusNetwork::BusNetwork(BusConfig &bc, const ColorOrderMap &com) : Bus(bc.type, b
   USER_PRINTF(" %u.%u.%u.%u]\n", bc.pins[0],bc.pins[1],bc.pins[2],bc.pins[3]);
 }
 
-void IRAM_ATTR BusNetwork::setPixelColor(uint16_t pix, uint32_t c) {
+void IRAM_ATTR_YN BusNetwork::setPixelColor(uint16_t pix, uint32_t c) {
     if (!_valid || pix >= _len) return;
     if (_rgbw) c = autoWhiteCalc(c);
     if (_cct >= 1900) c = colorBalanceFromKelvin(_cct, c); // color correction from CCT
@@ -532,7 +526,7 @@ void IRAM_ATTR BusNetwork::setPixelColor(uint16_t pix, uint32_t c) {
     }
 }
 
-uint32_t IRAM_ATTR BusNetwork::getPixelColor(uint16_t pix) const {
+uint32_t IRAM_ATTR_YN BusNetwork::getPixelColor(uint16_t pix) const {
     if (!_valid || pix >= _len) return 0;
     uint16_t offset = pix * _UDPchannels;
     uint8_t co = _colorOrderMap.getPixelColorOrder(pix + _start, _colorOrder);
@@ -657,6 +651,8 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   // fake bus flags
   _needsRefresh = mxconfig.latch_blanking == 1;
   reversed = mxconfig.clkphase;
+
+  if (bc.type > 104) mxconfig.driver = HUB75_I2S_CFG::FM6124;  // use FM6124 for "outdoor" panels - workaround until we can make the driver user-configurable
 
   // How many panels we have connected, cap at sane value, prevent bad data preventing boot due to low memory
   #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(BOARD_HAS_PSRAM)        // ESP32-S3: allow up to 6 panels
