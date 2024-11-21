@@ -885,9 +885,10 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
       static byte* buffer = nullptr; // Declare static buffer
       static size_t buffer_size = 0; // Track the buffer size
 
+      #ifdef ESP32 // the older ESP boards should not attempt this.
       if (volume_depth > 1) { // always assume to buffer output
         size_t new_size = (length * (isRGBW ? 4 : 3) * volume_depth);
-        if (buffer == nullptr || buffer_size != new_size) {
+        if (buffer == nullptr || buffer_size < new_size) {
           if (buffer != nullptr) {
             heap_caps_free(buffer);
           }
@@ -898,8 +899,13 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
         memcpy(buffer, buffer_in, length * 3);
         length *= volume_depth;
       } else {
+        if (buffer != nullptr) {
+          heap_caps_free(buffer);
+          buffer_size = 0;
+        }
         buffer = buffer_in;
       }
+      #endif
 
       AsyncUDP artnetudp;// AsyncUDP so we can just blast packets.
 
