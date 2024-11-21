@@ -987,11 +987,6 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
       // have several Art-Net devices being broadcast to, and should only
       // be called in that situation. 
       
-      // Art-Net broadcast mode (setting Art-Net to 255.255.255.255) should ONLY
-      // be used if you know what you're doing, as that is a lot of pixels being 
-      // sent to EVERYTHING on your network, including WiFi devices - and can 
-      // overwhelm them if you have a lot of Art-Net data being broadcast.
-
       #ifdef ARTNET_SYNC_ENABLED
         
         // This block sends Art-Net "ArtSync" packets. Can't do this with AsyncUDP because it doesn't support source port binding.
