@@ -782,18 +782,6 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
   #endif
   if (packet_buffer[0] != 0x41) memcpy(packet_buffer, ART_NET_HEADER, 12); // copy in the Art-Net header if it isn't there already
 
-  // Volumetric test code
-  // static byte *buffer = (byte *) heap_caps_calloc_prefer(length*3*72, sizeof(byte), 3, MALLOC_CAP_IRAM_8BIT, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT); // MALLOC_CAP_TCM seems to have alignment issues.
-  // memmove(buffer+(length*3),buffer,length*3*7);
-  // memcpy(buffer,buffer_in,length*3);
-  // framenumber++;
-  // if (framenumber >= 8) {
-  //   framenumber = 0;
-  // } else {
-  //   // return 0;
-  // }
-  // length *= 8;
-
   switch (type) {
     case 0: // DDP
     {
@@ -897,9 +885,10 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
       static byte* buffer = nullptr; // Declare static buffer
       static size_t buffer_size = 0; // Track the buffer size
 
+      #ifdef ESP32 // the older ESP boards should not attempt this.
       if (volume_depth > 1) { // always assume to buffer output
         size_t new_size = (length * (isRGBW ? 4 : 3) * volume_depth);
-        if (buffer == nullptr || buffer_size != new_size) {
+        if (buffer == nullptr || buffer_size < new_size) {
           if (buffer != nullptr) {
             heap_caps_free(buffer);
           }
@@ -912,6 +901,7 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
       } else {
         buffer = buffer_in;
       }
+      #endif
 
       AsyncUDP artnetudp;// AsyncUDP so we can just blast packets.
 
@@ -997,11 +987,6 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
       // have several Art-Net devices being broadcast to, and should only
       // be called in that situation. 
       
-      // Art-Net broadcast mode (setting Art-Net to 255.255.255.255) should ONLY
-      // be used if you know what you're doing, as that is a lot of pixels being 
-      // sent to EVERYTHING on your network, including WiFi devices - and can 
-      // overwhelm them if you have a lot of Art-Net data being broadcast.
-
       #ifdef ARTNET_SYNC_ENABLED
         
         // This block sends Art-Net "ArtSync" packets. Can't do this with AsyncUDP because it doesn't support source port binding.
