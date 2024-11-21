@@ -782,18 +782,6 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
   #endif
   if (packet_buffer[0] != 0x41) memcpy(packet_buffer, ART_NET_HEADER, 12); // copy in the Art-Net header if it isn't there already
 
-  // Volumetric test code
-  // static byte *buffer = (byte *) heap_caps_calloc_prefer(length*3*72, sizeof(byte), 3, MALLOC_CAP_IRAM_8BIT, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT); // MALLOC_CAP_TCM seems to have alignment issues.
-  // memmove(buffer+(length*3),buffer,length*3*7);
-  // memcpy(buffer,buffer_in,length*3);
-  // framenumber++;
-  // if (framenumber >= 8) {
-  //   framenumber = 0;
-  // } else {
-  //   // return 0;
-  // }
-  // length *= 8;
-
   switch (type) {
     case 0: // DDP
     {
