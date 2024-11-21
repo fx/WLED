@@ -899,10 +899,6 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
         memcpy(buffer, buffer_in, length * 3);
         length *= volume_depth;
       } else {
-        if (buffer != nullptr) {
-          heap_caps_free(buffer);
-          buffer_size = 0;
-        }
         buffer = buffer_in;
       }
       #endif
