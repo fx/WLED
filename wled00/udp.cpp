@@ -881,11 +881,11 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
       unsigned long timer = micros();
 
       // Volumetric test code
+      #ifdef ESP32 // Older ESP boards should not attempt this.
       uint8_t volume_depth = outputs*leds_per_output/length;
       static byte* buffer = nullptr; // Declare static buffer
       static size_t buffer_size = 0; // Track the buffer size
 
-      #ifdef ESP32 // the older ESP boards should not attempt this.
       if (volume_depth > 1) { // always assume to buffer output
         size_t new_size = (length * (isRGBW ? 4 : 3) * volume_depth);
         if (buffer == nullptr || buffer_size < new_size) {
@@ -901,6 +901,8 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
       } else {
         buffer = buffer_in;
       }
+      #else
+      buffer = buffer_in;
       #endif
 
       AsyncUDP artnetudp;// AsyncUDP so we can just blast packets.
