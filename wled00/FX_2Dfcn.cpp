@@ -279,6 +279,7 @@ void Segment::startFrame(void) {
 
   // WLEDMM Waterfall mapping
   if (!_is2Deffect && (map1D2D == M12_pBar) && reverse) { // WLEDMM Waterfall = bar + reverse
+    if (!ledsrgb || (ledsrgbSize == 0)) setUpLeds();      // create segment buffer if not set up already ==> 30% faster, and prevents interference with other segments.
     for (unsigned myRow = _2dHeight-1; myRow > 0; myRow--)
       for (unsigned myCol = 0; myCol < _2dWidth; myCol++) {
         setPixelColorXY(myCol, myRow, getPixelColorXY(int(myCol), int(myRow)-1));
