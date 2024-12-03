@@ -1503,8 +1503,8 @@ void Segment::fadePixelColor(uint16_t n, uint8_t fade) {
 void __attribute__((hot)) Segment::fade_out(uint8_t rate) {
   if (!isActive()) return; // not active
   bool reallyIs2D = _is2Deffect || (is2D() && !(map1D2D == M12_pBar && reverse));  // WLEDMM switch to "1D" mode for Bar or waterfall
-  const uint_fast16_t cols = reallyIs2D ? virtualWidth() : virtualLength();           // WLEDMM use fast int types
-  const uint_fast16_t rows = virtualHeight(); // will be 1 for 1D
+  const uint_fast16_t cols = reallyIs2D ? virtualWidth() : virtualLength();        // WLEDMM use fast int types
+  const uint_fast16_t rows = reallyIs2D ? virtualHeight() : 1;                     // must be 1 for 1D
 
   uint_fast8_t fadeRate = (255-rate) >> 1;
   float mappedRate_r = 1.0f / (float(fadeRate) +1.1f); // WLEDMM use reciprocal  1/mappedRate -> faster on non-FPU chips
@@ -1547,7 +1547,8 @@ void __attribute__((hot)) Segment::fadeToBlackBy(uint8_t fadeBy) {
   if (!isActive() || fadeBy == 0) return;   // optimization - no scaling to apply
   bool reallyIs2D = _is2Deffect || (is2D() && !(map1D2D == M12_pBar && reverse));  // WLEDMM switch to "1D" mode for Bar or waterfall
   const uint_fast16_t cols = reallyIs2D ? virtualWidth() : virtualLength();        // WLEDMM use fast int types
-  const uint_fast16_t rows = virtualHeight(); // will be 1 for 1D
+  const uint_fast16_t rows = reallyIs2D ? virtualHeight() : 1;                     // must be 1 for 1D
+
   const uint_fast8_t scaledown = 255-fadeBy;  // WLEDMM faster to pre-compute this
 
   // WLEDMM minor optimization
